@@ -4,6 +4,8 @@ A modern home screen for the PS Vita. VitaOS puts your games, films, music,
 apps and photos behind one fast, good-looking menu, with a PS5-style feel on
 the handheld you already own.
 
+**Case study and video:** [mitchellv.me/work/vitaos](https://www.mitchellv.me/work/vitaos) · by [Mitchell Vizensky](https://www.mitchellv.me), game UX designer
+
 VitaOS is free and open source (GPLv3). It is not affiliated with or
 endorsed by Sony Interactive Entertainment. PlayStation and PS Vita are
 trademarks of Sony Interactive Entertainment.
