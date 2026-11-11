@@ -6,6 +6,8 @@ the handheld you already own.
 
 **Case study and video:** [mitchellv.me/work/vitaos](https://www.mitchellv.me/work/vitaos) · by [Mitchell Vizensky](https://www.mitchellv.me), game UX designer
 
+If it's useful to you, you can [buy me a coffee on Ko-fi](https://ko-fi.com/Y4G62AHO0A). It helps keep these projects going.
+
 VitaOS is free and open source (GPLv3). It is not affiliated with or
 endorsed by Sony Interactive Entertainment. PlayStation and PS Vita are
 trademarks of Sony Interactive Entertainment.
