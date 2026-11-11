@@ -1,17 +1,24 @@
-/* mp4fix: make an .m4a/.mp4 playable by SceAvPlayer, losslessly (2026-11).
+/* mp4fix: make an .m4a/.mp4 playable by SceAvPlayer, without losing anything
+ * (2026-11).
  *
  * VitaOS's own music import writes files with the index (the "moov" box)
  * first and only the audio track, and those play. Songs people copy over
  * themselves usually have the index at the end (most converters and phones
  * write it last), and files converted from MP3 often carry the cover picture
- * as a second, "video" track. SceAvPlayer refuses both at AddSource, which
- * was the "That file would not play" of issues 8 and 15.
+ * as a second, "video" track.
  *
- * This does what `ffmpeg -i in -map 0:a -c copy -movflags +faststart out`
- * does: it moves the index to the front, optionally leaves out every track
- * that is not sound, and patches the chunk offsets. The sound itself is
- * copied byte for byte. The new file is written beside the old one as
- * "<name>.part" and only replaces it once it is complete.
+ * What this does, and what it never does:
+ *  - Moving the index to the front reorders the file and patches the chunk
+ *    offsets. Every track, tag and byte of media is kept: it is what
+ *    `ffmpeg -c copy -movflags +faststart` does.
+ *  - For songs only (MP4FIX_SONG), a track is left out only when it is a
+ *    still picture: a video track whose codec is JPEG or PNG. Chapter, text
+ *    and subtitle tracks (audiobooks, podcasts) and real video are kept.
+ *    When a track is left out, the untouched original stays beside the file
+ *    as "<name>.orig", so nothing is ever destroyed.
+ *  - The new file is written as "<name>.part" and takes the real name only
+ *    when complete; mp4fix_sweep() tidies up after a crash or power loss in
+ *    the middle (leftover .part files, an .orig whose file is missing).
  *
  * Plain stdio, so it builds and is tested on a computer too
  * (tools/test_mp4fix.sh). */
@@ -19,6 +26,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include "mp4fix.h"
 
 #define MAX_MOOV (16 * 1024 * 1024)
@@ -88,13 +98,94 @@ static int each_child(unsigned char *p, uint64_t len, Visit fn, void *ctx) {
 
 static unsigned header_len(const unsigned char *box) { return be32(box) == 1 ? 16 : 8; }
 
-/* The handler of a trak ("soun", "vide", ...): trak > mdia > hdlr. */
+/* The handler of a trak ("soun", "vide", "text", ...): trak > mdia > hdlr. */
 static int find_handler(unsigned char *box, uint64_t size, void *ctx) {
     char *out = ctx;
     unsigned h = header_len(box);
     if (!memcmp(box + 4, "mdia", 4)) return each_child(box + h, size - h, find_handler, ctx);
     if (!memcmp(box + 4, "hdlr", 4) && size >= h + 12) { memcpy(out, box + h + 8, 4); return 1; }
     return 0;
+}
+
+/* The codec of a trak's first sample entry ("mp4a", "jpeg", "avc1", ...). */
+static int find_stsd(unsigned char *box, uint64_t size, void *ctx) {
+    char *out = ctx;
+    unsigned h = header_len(box);
+    if (!memcmp(box + 4, "mdia", 4) || !memcmp(box + 4, "minf", 4) || !memcmp(box + 4, "stbl", 4))
+        return each_child(box + h, size - h, find_stsd, ctx);
+    if (!memcmp(box + 4, "stsd", 4) && size >= h + 16) { memcpy(out, box + h + 12, 4); return 1; }
+    return 0;
+}
+
+/* For an "mp4v" entry, the kind of picture inside (its esds object type):
+ * 0x6C JPEG, 0x6D PNG, 0x20 real MPEG-4 video. 0 if it cannot be read. */
+typedef struct { unsigned char *entry; uint64_t len; } Entry;
+static int find_entry(unsigned char *box, uint64_t size, void *ctx) {
+    Entry *out = ctx;
+    unsigned h = header_len(box);
+    if (!memcmp(box + 4, "mdia", 4) || !memcmp(box + 4, "minf", 4) || !memcmp(box + 4, "stbl", 4))
+        return each_child(box + h, size - h, find_entry, ctx);
+    if (!memcmp(box + 4, "stsd", 4) && size >= h + 16) {
+        uint64_t n = be32(box + h + 8);
+        if (n >= 8 && n <= size - h - 8) { out->entry = box + h + 8; out->len = n; }
+        return 1;
+    }
+    return 0;
+}
+
+static int esds_object_type(const unsigned char *e, uint64_t len) {
+    if (len < 86 + 12) return 0;
+    for (uint64_t at = 86; at + 8 <= len;) {                 /* boxes after the visual sample entry's fixed part */
+        uint64_t size = be32(e + at);
+        if (size < 8 || size > len - at) return 0;
+        if (!memcmp(e + at + 4, "esds", 4)) {
+            const unsigned char *p = e + at + 12, *end = e + at + size;
+            for (int level = 0; level < 2; ++level) {         /* ES_Descr (3), then DecoderConfig (4) */
+                if (end - p < 2 || *p != (level ? 0x04 : 0x03)) return 0;
+                ++p;
+                for (int k = 0; k < 4 && p < end && (*p & 0x80); ++k) ++p;   /* the length's leading bytes */
+                if (p >= end) return 0;
+                ++p;
+                if (!level) {
+                    if (end - p < 3) return 0;
+                    int fl = p[2];
+                    p += 3;
+                    if (fl & 0x80) p += 2;
+                    if (fl & 0x40) { if (p >= end) return 0; p += 1 + *p; }
+                    if (fl & 0x20) p += 2;
+                    if (p >= end) return 0;
+                }
+            }
+            return p < end ? *p : 0;
+        }
+        at += size;
+    }
+    return 0;
+}
+
+/* 1 for a trak that is only a still picture (cover art stored as a track):
+ * a video handler with a JPEG or PNG codec. Everything else is kept. */
+static int is_picture_track(unsigned char *trak, uint64_t size) {
+    char hd[5] = {0}, codec[5] = {0};
+    unsigned h = header_len(trak);
+    each_child(trak + h, size - h, find_handler, hd);
+    if (memcmp(hd, "vide", 4)) return 0;
+    each_child(trak + h, size - h, find_stsd, codec);
+    if (!memcmp(codec, "mp4v", 4)) {                         /* how ffmpeg and many taggers store a JPEG cover */
+        Entry en = {0, 0};
+        each_child(trak + h, size - h, find_entry, &en);
+        int ot = en.entry ? esds_object_type(en.entry, en.len) : 0;
+        return ot == 0x6C || ot == 0x6D;
+    }
+    return !memcmp(codec, "jpeg", 4) || !memcmp(codec, "mjpa", 4) || !memcmp(codec, "mjpb", 4) ||
+           !memcmp(codec, "png ", 4) || !memcmp(codec, "MJPG", 4);
+}
+
+static int is_sound_track(unsigned char *trak, uint64_t size) {
+    char hd[5] = {0};
+    unsigned h = header_len(trak);
+    each_child(trak + h, size - h, find_handler, hd);
+    return !memcmp(hd, "soun", 4);
 }
 
 typedef struct { const Box *b; int n; int overflow; } Patch;
@@ -131,82 +222,90 @@ static int patch_offsets(unsigned char *box, uint64_t size, void *ctx) {
 }
 
 /* What needs doing: MP4FIX_INDEX_LAST and/or MP4FIX_EXTRA_TRACKS, 0 if
- * nothing, < 0 if this is not an MP4 we understand. */
-static int examine(FILE *f, Box *b, int *nb, unsigned char **moov_out, int audio_only) {
+ * nothing, < 0 if this is not an MP4 we understand. The index is only read
+ * into memory when tracks have to be looked at (songs) or changed. */
+static int examine(FILE *f, Box *b, int *nb, unsigned char **moov_out, int song) {
     int n = top_boxes(f, b, MAX_BOXES);
     if (n < 0) return MP4FIX_NOT_MP4;
     *nb = n;
     int moov = find(b, n, "moov"), mdat = find(b, n, "mdat");
     if (moov < 0 || mdat < 0 || b[moov].size > MAX_MOOV) return MP4FIX_NOT_MP4;
     int need = moov > mdat ? MP4FIX_INDEX_LAST : 0;
+    if (!song && !moov_out) return need;
     unsigned char *m = malloc((size_t)b[moov].size);
     if (!m) return MP4FIX_NOT_MP4;
     if (fseek(f, (long)b[moov].at, SEEK_SET) || fread(m, 1, (size_t)b[moov].size, f) != b[moov].size) { free(m); return MP4FIX_NOT_MP4; }
-    if (audio_only) {
-        unsigned h = header_len(m);
-        uint64_t at = h;
-        int sound = 0, other = 0;
+    if (song) {
+        uint64_t at = header_len(m);
+        int sound = 0, pictures = 0;
         while (at + 8 <= b[moov].size) {
             uint64_t size = be32(m + at);
             if (size < 8 || at + size > b[moov].size) break;
             if (!memcmp(m + at + 4, "trak", 4)) {
-                char hd[5] = {0};
-                each_child(m + at + header_len(m + at), size - header_len(m + at), find_handler, hd);
-                if (!memcmp(hd, "soun", 4)) sound++; else other++;
+                if (is_sound_track(m + at, size)) sound++;
+                else if (is_picture_track(m + at, size)) pictures++;
             }
             at += size;
         }
-        if (sound && other) need |= MP4FIX_EXTRA_TRACKS;
+        if (sound && pictures) need |= MP4FIX_EXTRA_TRACKS;
     }
     if (moov_out) *moov_out = m; else free(m);
     return need;
 }
 
-int mp4fix_check(const char *path, int audio_only) {
+int mp4fix_check(const char *path, int flags) {
     FILE *f = fopen(path, "rb");
     if (!f) return MP4FIX_NOT_MP4;
     Box b[MAX_BOXES];
     int n = 0;
-    int need = examine(f, b, &n, NULL, audio_only);
+    int need = examine(f, b, &n, NULL, flags & MP4FIX_SONG);
     fclose(f);
     return need;
 }
 
-static int copy_range(FILE *in, FILE *out, uint64_t at, uint64_t len) {
-    static unsigned char buf[64 * 1024];
-    if (fseek(in, (long)at, SEEK_SET)) return -1;
-    while (len) {
-        size_t want = len > sizeof(buf) ? sizeof(buf) : (size_t)len;
-        if (fread(buf, 1, want, in) != want || fwrite(buf, 1, want, out) != want) return -1;
-        len -= want;
-    }
-    return 0;
+long long mp4fix_size(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    long long n = file_size(f);
+    fclose(f);
+    return n;
 }
 
-int mp4fix_fix(const char *path, int audio_only) {
+static int copy_range(FILE *in, FILE *out, uint64_t at, uint64_t len, Mp4fixJob *job) {
+    enum { CHUNK = 256 * 1024 };
+    unsigned char *buf = malloc(CHUNK);
+    if (!buf) return -1;
+    int rc = fseek(in, (long)at, SEEK_SET) ? -1 : 0;
+    while (len && !rc) {
+        size_t want = len > CHUNK ? CHUNK : (size_t)len;
+        if (job && job->cancel) { rc = -2; break; }
+        if (fread(buf, 1, want, in) != want || fwrite(buf, 1, want, out) != want) { rc = -1; break; }
+        len -= want;
+        if (job) job->done += want;
+    }
+    free(buf);
+    return rc;
+}
+
+int mp4fix_fix(const char *path, int flags, Mp4fixJob *job) {
     FILE *f = fopen(path, "rb");
     if (!f) return MP4FIX_NOT_MP4;
     Box b[MAX_BOXES];
     int n = 0;
     unsigned char *m = NULL;
-    int need = examine(f, b, &n, &m, audio_only);
+    int need = examine(f, b, &n, &m, flags & MP4FIX_SONG);
     if (need <= 0) { fclose(f); free(m); return need; }
     int moov = find(b, n, "moov");
     uint64_t moov_size = b[moov].size;
 
-    /* The new index: the same, without the tracks that are not sound. */
+    /* The new index: the same, without the still-picture tracks. */
     if (need & MP4FIX_EXTRA_TRACKS) {
         unsigned h = header_len(m);
         uint64_t r = h, w = h;
         while (r + 8 <= moov_size) {
             uint64_t size = be32(m + r);
             if (size < 8 || r + size > moov_size) break;
-            int keep = 1;
-            if (!memcmp(m + r + 4, "trak", 4)) {
-                char hd[5] = {0};
-                each_child(m + r + header_len(m + r), size - header_len(m + r), find_handler, hd);
-                keep = !memcmp(hd, "soun", 4);
-            }
+            int keep = memcmp(m + r + 4, "trak", 4) || !is_picture_track(m + r, size);
             if (keep) { memmove(m + w, m + r, (size_t)size); w += size; }
             r += size;
         }
@@ -219,53 +318,90 @@ int mp4fix_fix(const char *path, int audio_only) {
     int ftyp = find(b, n, "ftyp");
     uint64_t at = 0;
     if (ftyp >= 0) { b[ftyp].new_at = at; at += b[ftyp].size; }
-    uint64_t moov_at = at;
     at += moov_size;
     for (int i = 0; i < n; ++i) {
         if (i == ftyp || i == moov) continue;
         b[i].new_at = at;
         at += b[i].size;
     }
+    if (job) { job->total = at; job->done = 0; }
     Patch p = {b, n, 0};
     unsigned h = header_len(m);
     if (each_child(m + h, moov_size - h, patch_offsets, &p) < 0 || p.overflow) { fclose(f); free(m); return MP4FIX_FAILED; }
 
-    char part[512];
+    char part[512], old[520];
     snprintf(part, sizeof(part), "%s.part", path);
+    snprintf(old, sizeof(old), "%s.orig", path);
     FILE *o = fopen(part, "wb");
     if (!o) { fclose(f); free(m); return MP4FIX_FAILED; }
     int bad = 0;
-    if (ftyp >= 0) bad |= copy_range(f, o, b[ftyp].at, b[ftyp].size);
-    if (!bad && fwrite(m, 1, (size_t)moov_size, o) != moov_size) bad = 1;
+    if (ftyp >= 0) bad = copy_range(f, o, b[ftyp].at, b[ftyp].size, job);
+    if (!bad && fwrite(m, 1, (size_t)moov_size, o) != moov_size) bad = -1;
+    if (!bad && job) job->done += moov_size;
     for (int i = 0; i < n && !bad; ++i) {
         if (i == ftyp || i == moov) continue;
-        bad |= copy_range(f, o, b[i].at, b[i].size);
+        bad = copy_range(f, o, b[i].at, b[i].size, job);
     }
-    if (fclose(o)) bad = 1;
+    if (fclose(o) && !bad) bad = -1;
     fclose(f);
     free(m);
-    if (bad) { remove(part); return MP4FIX_FAILED; }
-    (void)moov_at;
-    /* Swap: keep the original until the new file is in place. */
-    char old[520];
-    snprintf(old, sizeof(old), "%s.orig", path);
-    remove(old);
-    if (rename(path, old)) { remove(part); return MP4FIX_FAILED; }
-    if (rename(part, path)) { rename(old, path); remove(part); return MP4FIX_FAILED; }
-    remove(old);
+    if (bad) { remove(part); return bad == -2 ? MP4FIX_CANCELLED : MP4FIX_FAILED; }
+    /* Swap. The original keeps existing under one name or the other at every
+     * step; mp4fix_sweep() puts it back if this is interrupted. */
+    struct stat st;
+    int have_orig = stat(old, &st) == 0;                 /* an earlier original: that one is the true one */
+    if (have_orig) {
+        if (remove(path)) { remove(part); return MP4FIX_FAILED; }
+    } else if (rename(path, old)) { remove(part); return MP4FIX_FAILED; }
+    if (rename(part, path)) {
+        if (!have_orig) rename(old, path);
+        remove(part);
+        return MP4FIX_FAILED;
+    }
+    /* Only reordered: nothing was left out, so the old copy is not needed.
+     * A track was left out: the original stays, for good. */
+    if (!(need & MP4FIX_EXTRA_TRACKS) && !have_orig) remove(old);
     return need;
 }
 
-/* The first sound track's codec, from its stsd entry ("mp4a", "alac", ...). */
-static int find_stsd(unsigned char *box, uint64_t size, void *ctx) {
-    char *out = ctx;
-    unsigned h = header_len(box);
-    if (!memcmp(box + 4, "mdia", 4) || !memcmp(box + 4, "minf", 4) || !memcmp(box + 4, "stbl", 4))
-        return each_child(box + h, size - h, find_stsd, ctx);
-    if (!memcmp(box + 4, "stsd", 4) && size >= h + 16) { memcpy(out, box + h + 12, 4); return 1; }
+/* After a crash or power loss mid-fix: under `dir` (and its folders, a few
+ * levels down), delete half-written "<media>.part" files and give back the
+ * name of any "<media>.orig" whose file is missing. Returns how many files
+ * it put back. Never touches a pair that is complete. */
+static int media_name(const char *name, size_t len) {
+    static const char *const ext[] = {".m4a", ".mp4", ".m4b", ".aac", ".m4v", ".mov"};
+    for (int i = 0; i < 6; ++i) {
+        size_t el = strlen(ext[i]);
+        if (len > el && !strncasecmp(name + len - el, ext[i], el)) return 1;
+    }
     return 0;
 }
 
+int mp4fix_sweep(const char *dir, int depth) {
+    DIR *d = opendir(dir);
+    if (!d) return 0;
+    int restored = 0;
+    struct dirent *e;
+    while ((e = readdir(d))) {
+        if (e->d_name[0] == '.') continue;
+        char path[600], real[600];
+        snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
+        struct stat st;
+        if (stat(path, &st)) continue;
+        if (S_ISDIR(st.st_mode)) { if (depth > 0) restored += mp4fix_sweep(path, depth - 1); continue; }
+        size_t len = strlen(e->d_name);
+        if (len > 5 && !strcmp(e->d_name + len - 5, ".part") && media_name(e->d_name, len - 5)) {
+            remove(path);
+        } else if (len > 5 && !strcmp(e->d_name + len - 5, ".orig") && media_name(e->d_name, len - 5)) {
+            snprintf(real, sizeof(real), "%.*s", (int)(strlen(path) - 5), path);
+            if (stat(real, &st) && rename(path, real) == 0) restored++;
+        }
+    }
+    closedir(d);
+    return restored;
+}
+
+/* The first sound track's codec, from its stsd entry ("mp4a", "alac", ...). */
 int mp4fix_sound_codec(const char *path, char out[5]) {
     memset(out, 0, 5);
     FILE *f = fopen(path, "rb");
@@ -281,10 +417,8 @@ int mp4fix_sound_codec(const char *path, char out[5]) {
         uint64_t s = be32(m + at);
         if (s < 8 || at + s > size) break;
         if (!memcmp(m + at + 4, "trak", 4)) {
-            char hd[5] = {0};
             unsigned h = header_len(m + at);
-            each_child(m + at + h, s - h, find_handler, hd);
-            if (!memcmp(hd, "soun", 4)) each_child(m + at + h, s - h, find_stsd, out);
+            if (is_sound_track(m + at, s)) each_child(m + at + h, s - h, find_stsd, out);
         }
         at += s;
     }

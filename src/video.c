@@ -14,6 +14,7 @@
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/audioout.h>
 #include <psp2/io/fcntl.h>
+#include <psp2/io/stat.h>
 #include <psp2/kernel/clib.h>
 #include <psp2/kernel/dmac.h>
 #include <vita2d.h>
@@ -118,6 +119,12 @@ void video_collect(void) {
     }
     ndeferred = 0;
     sceKernelSignalSema(defer_lock, 1);
+}
+
+/* user/mp4fix.off: VitaOS never rewrites a media file. */
+int video_fix_off(void) {
+    SceIoStat st;
+    return sceIoGetstat("ux0:data/arcadehub/user/mp4fix.off", &st) >= 0;
 }
 
 static int is_error(SceAvPlayerHandle h) {
@@ -258,13 +265,15 @@ static int opener(SceSize args, void *argp) {
         sceKernelSignalSema(open_lock, 1);
         if (!want) continue;
         wait_closed();                               /* one decoder at a time */
-        /* Songs and films copied over by hand often have their index at the
-         * end, or cover art as a second track: SceAvPlayer refuses those.
-         * Rearrange the file once, losslessly (mp4fix.c), then play it. */
-        if ((who == OWN_MUSIC || who == OWN_MOVIE) && mp4fix_check(path, who == OWN_MUSIC) > 0) {
-            ui_toast(who == OWN_MUSIC ? "Getting this song ready to play\xE2\x80\xA6" : "Getting this film ready to play\xE2\x80\xA6", C_ACCENT);
-            int fx = mp4fix_fix(path, who == OWN_MUSIC);
+        /* Songs copied over by hand often have their index at the end, or
+         * cover art as a still-picture track: rearrange the file once, without
+         * losing anything (mp4fix.c), then play it. Films are never rewritten
+         * from here: they are big, and Movies asks first (movies.c). */
+        if (who == OWN_MUSIC && !video_fix_off() && mp4fix_check(path, MP4FIX_SONG) > 0) {
+            ui_toast("Getting this song ready to play\xE2\x80\xA6", C_ACCENT);
+            int fx = mp4fix_fix(path, MP4FIX_SONG, NULL);
             alog("mp4fix %d (owner %d) %d\n", fx, who, 0);
+            if (fx == MP4FIX_FAILED) ui_toast("Could not get it ready: is the card full?", C_BAD);
         }
         SceAvPlayerHandle h = 0;
         int ok = video_init() >= 0;

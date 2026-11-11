@@ -149,6 +149,8 @@ int ui_confirm(const char *title, const char *body);                 /* 1 = yes 
 int ui_menu(const char *title, const char *const items[], int n);    /* index or -1 */
 int ui_ask_text(const char *title, char *text, int max);             /* 1 = entered */
 void ui_message(const char *title, const char *body);
+int ui_progress(const char *title, const char *body, const volatile unsigned long long *done,
+                const volatile unsigned long long *total, const volatile int *finished, volatile int *cancel);   /* 1 = cancelled */
 
 /* Which header tab a tap landed on, or -1. */
 int header_tab_at(int x, int y, const char *const tabs[], int ntabs);
