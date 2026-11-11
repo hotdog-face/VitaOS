@@ -65,7 +65,7 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
 
 Screenshots are in `docs/screenshots-1.9.0-red/`.
 
-- Installed over 1.7-era VitaOS (backup kept), then rolled back and
+- Installed over the older VitaOS on red (an Oct 1 build; backup kept), then rolled back and
   reinstalled with the new MCP install tool.
 - Home, Play (118 Vita and 7 PSP games), Music (2,106 songs), Apps and
   Settings all open and draw correctly. Japanese song titles render.
