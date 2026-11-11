@@ -19,6 +19,7 @@
 #include <psp2/kernel/processmgr.h>
 
 #include "settings.h"
+#include "sysint.h"
 #include "version.h"
 #include "update.h"
 #include "battery.h"
@@ -310,7 +311,7 @@ static void page_reset(void) { in_rows = 0; rsel = 0; pbtn = -1; scroll = scroll
 
 enum { R_INFO, R_SLIDER, R_ACTION, R_TOGGLE };
 enum { A_NONE, A_BRIGHT, A_VOLUME, A_SFX, A_AMBIENT, A_THEME, A_BATTERY, A_BUBBLES, A_SLEEP, A_RESTART, A_POWEROFF,
-       A_AUTOUPD, A_LANG, A_TEXTSIZE, A_WIFI, A_BLUETOOTH, A_WEATHER, A_STORAGE, A_UPDATE, A_BOOT, A_MOVIES, A_MUSIC, A_KIOSK, A_RESCAN, A_ART, A_ABOUT };
+       A_AUTOUPD, A_LANG, A_TEXTSIZE, A_WIFI, A_BLUETOOTH, A_WEATHER, A_STORAGE, A_UPDATE, A_BOOT, A_PLUGIN, A_MOVIES, A_MUSIC, A_KIOSK, A_RESCAN, A_ART, A_ABOUT };
 typedef struct { int kind, act; const char *label, *sub; char value[96]; float frac; int on; unsigned int color; } Row;
 #define MAXROWS 12
 static Row rows[MAXROWS];
@@ -338,6 +339,53 @@ static void flag_write(const char *path, int on) {
         SceUID f = sceIoOpen(path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
         if (f >= 0) sceIoClose(f);
     } else sceIoRemove(path);
+}
+
+static SceUInt64 now_us(void) { return sceKernelGetProcessTimeWide(); }
+static int plugin_dirty;
+
+/* Settings > VitaOS > Start at power-on: set up, update or remove the plugin
+ * (sysint.c does the file work, with a backup and checks). */
+static void plugin_action(void) {
+    SysintState ps;
+    int on = sysint_state(&ps);
+    char err[200] = "", msg[400];
+    plugin_dirty = 1;
+    if (!on) {
+        if (!ps.config) {
+            ui_message("Start at power-on", "This Vita has no tai/config.txt, so plugins are not set up here. "
+                                            "Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.");
+            return;
+        }
+        snprintf(msg, sizeof(msg), "VitaOS adds its small plugin to %s and keeps a copy of the old file.\n"
+                                   "If the Vita ever starts badly, hold L while turning it on: that skips every plugin.", ps.config);
+        if (!ui_confirm("Start at power-on", msg)) return;
+        if (sysint_install(err, sizeof(err)) < 0) { ui_message("Start at power-on", err); return; }
+        flag_write(BOOT_OFF, 0);
+        if (ui_confirm("Start at power-on", "Done. It starts working after a restart. Restart the Vita now?")) scePowerRequestColdReset();
+        else ui_toast("VitaOS opens at power-on after the next restart", C_OK);
+        return;
+    }
+    const char *items[3];
+    int n = 0, act[3];
+    if (!ps.current && ps.bundled) { items[n] = "Update the plugin"; act[n++] = 1; }
+    items[n] = "Remove the plugin"; act[n++] = 2;
+    items[n] = "What it does"; act[n++] = 3;
+    int k = ui_menu("VitaOS plugin", items, n);
+    if (k < 0) return;
+    if (act[k] == 1) {
+        if (sysint_update_file(err, sizeof(err)) < 0) ui_message("VitaOS plugin", err);
+        else ui_toast("Plugin updated: restart the Vita to use it", C_OK);
+    } else if (act[k] == 2) {
+        if (!ui_confirm("Remove the plugin", "VitaOS will no longer open at power-on or come back after games. "
+                                             "The line is taken out of the config; a copy of the old file is kept.")) return;
+        if (sysint_remove(err, sizeof(err)) < 0) ui_message("Remove the plugin", err);
+        else ui_toast("Removed: the Vita starts as usual after a restart", C_OK);
+    } else {
+        snprintf(msg, sizeof(msg), "It opens VitaOS when the Vita starts and after a game ends, and PS goes to VitaOS's Home.\n"
+                                   "It is in %s (ur0:tai/vitaos_ps.suprx). Hold L at power-on to skip all plugins once.", ps.config);
+        ui_message("VitaOS plugin", msg);
+    }
 }
 
 static void build_rows(void) {
@@ -438,9 +486,27 @@ static void build_rows(void) {
             r->sub = st ? NULL : "Press X (or START anywhere in Settings)";
             r->color = st == 9 ? C_BAD : C_ACCENT;
         }
-        r = add(R_TOGGLE, A_BOOT, "Start at boot");
-        r->on = !flag_set(BOOT_OFF);
-        r->sub = "Open VitaOS at power-on (needs the PS plugin)";
+        {
+            /* the plugin's state, read from the card at most every 2 s */
+            static SysintState ps;
+            static SceUInt64 ps_at;
+            static int ps_on;
+            if (!ps_at || now_us() - ps_at > 2000000 || plugin_dirty) { ps_on = sysint_state(&ps); ps_at = now_us(); plugin_dirty = 0; }
+            if (!ps_on) {
+                r = add(R_ACTION, A_PLUGIN, "Start at power-on");
+                snprintf(r->value, sizeof(r->value), "%s", ps.config ? "Set up" : "Needs taiHEN");
+                r->sub = "VitaOS opens when the Vita starts, and comes back after games";
+                r->color = C_ACCENT;
+            } else {
+                r = add(R_TOGGLE, A_BOOT, "Start at power-on");
+                r->on = !flag_set(BOOT_OFF);
+                r->sub = "Open VitaOS when the Vita starts";
+                r = add(R_ACTION, A_PLUGIN, "VitaOS plugin");
+                snprintf(r->value, sizeof(r->value), "%s", ps.current || !ps.bundled ? "Installed" : "Update ready");
+                if (!ps.current && ps.bundled) r->color = C_ACCENT;
+                r->sub = ps.config;
+            }
+        }
 #ifdef VITAOS_KIOSK
         r = add(R_TOGGLE, A_KIOSK, "Hide the bubbles");
         r->on = flag_set(KIOSK_ON);
@@ -528,6 +594,7 @@ static void activate(Row *r) {
         if (ui_confirm("Power off", "Turn the Vita off? Hold the power button to turn it back on.")) scePowerRequestStandby();
         break;
     case A_UPDATE: { const char *um; float uf; if (!update_stage(&um, &uf)) update_get(); break; }
+    case A_PLUGIN: plugin_action(); break;
     case A_BOOT:
         flag_write(BOOT_OFF, r->on);
         ui_toast(r->on ? "VitaOS will not open at power-on" : "VitaOS opens at power-on (needs the PS plugin)", r->on ? C_ACCENT : C_OK);

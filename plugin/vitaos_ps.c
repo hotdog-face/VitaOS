@@ -19,7 +19,10 @@
  * LiveArea. ux0:data/arcadehub/return.off turns it off. On a Vita with the
  * agent bridge, the bridge does this job and the plugin stands aside.
  *
- * 1.3 (2026-09-27): and the Vita starts in VitaOS (see boot_start). */
+ * 1.3 (2026-09-27): and the Vita starts in VitaOS (see boot_start).
+ *
+ * 1.4 (2026-11): PS keeps working when another plugin rewrites controller
+ * timestamps; VitaOS 1.9 installs and updates this file from Settings. */
 #include <taihen.h>
 #include <psp2/ctrl.h>
 #include <psp2/appmgr.h>
@@ -169,10 +172,18 @@ static int watch(SceSize args, void *argp) {
         int n = sceCtrlPeekBufferPositive2(0, pads, 16);
         if (n <= 0) continue;
         unsigned int down = 0;
+        int fresh = 0;
         for (int i = 0; i < n; ++i) {
             if (pads[i].timeStamp <= last_ts) continue;
             last_ts = pads[i].timeStamp;
             down |= pads[i].buttons & 0x10000;
+            fresh = 1;
+        }
+        /* 1.4: timestamps that stop moving forward (another controller plugin
+         * rewriting them) must not make PS go dead: use the newest sample. */
+        if (!fresh) {
+            if (pads[n - 1].timeStamp < last_ts) last_ts = pads[n - 1].timeStamp;
+            down = pads[n - 1].buttons & 0x10000;
         }
         if (down && !was && vitaos_running()) {
             SceUID fd = sceIoOpen("ux0:data/arcadehub/ps.tap", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
