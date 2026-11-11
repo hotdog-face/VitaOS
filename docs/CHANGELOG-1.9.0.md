@@ -1,6 +1,6 @@
 # VitaOS 1.9.0 (draft release notes)
 
-Not released yet. Not tested on a real Vita yet: see "Before release" below.
+Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardware" and "Before release" below.
 
 ## Music, films and previews play again
 
@@ -61,10 +61,30 @@ Not released yet. Not tested on a real Vita yet: see "Before release" below.
 - When there's nothing to show yet, Play and Home explain where games go and
   how to get started.
 
+## Tested on hardware (red, PCH-2000, 2026-11-11)
+
+Screenshots are in `docs/screenshots-1.9.0-red/`.
+
+- Installed over 1.7-era VitaOS (backup kept), then rolled back and
+  reinstalled with the new MCP install tool.
+- Home, Play (118 Vita and 7 PSP games), Music (2,106 songs), Apps and
+  Settings all open and draw correctly. Japanese song titles render.
+- **A hand-made m4a with its index at the end and a cover-art video track:**
+  VitaOS said "Getting this song ready to play…", rearranged the file (index
+  first, one track; checked by pulling it back to the Mac) and played it.
+  The next song (index at the end only) went the same way.
+- Settings > VitaOS shows "Start at power-on: Set up", which is correct:
+  red's `ur0:tai/config.txt` has no VitaOS line. The set-up flow itself
+  was **not** run, because it edits red's tai config and needs Mitchell's OK.
+- The crash-report card was not triggered (red has crash reports turned off
+  and had no new VitaOS crash). The dump reader was checked against the
+  three dumps from #12 on the Mac.
+- Not yet checked on hardware: an `.mp4` film, the static fix for Home music
+  (red's volume was 0), icons that used to be blank, and DS/Dreamcast games.
+
 ## Before release (for Mitchell)
 
 1. Install this build on a test Vita (red) and check:
-   - a hand-copied `.m4a` plays;
    - an `.mp4` film plays;
    - Play previews play;
    - Settings > VitaOS > Start at power-on, then restart: VitaOS opens;
