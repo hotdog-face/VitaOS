@@ -57,6 +57,7 @@ void ui_read_input(Input *in);
 
 /* Text. fit() shortens with "..." to a pixel width. */
 int text_w(UiFont *f, int size, const char *s);
+void ui_initials(const char *name, char *out, int max);   /* "SM", or one whole CJK character */
 void text(UiFont *f, int x, int y, unsigned int color, int size, const char *s);
 void text_fit(UiFont *f, int x, int y, unsigned int color, int size, const char *s, int max_w);
 void text_right(UiFont *f, int right, int y, unsigned int color, int size, const char *s);

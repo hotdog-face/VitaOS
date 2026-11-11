@@ -1691,13 +1691,9 @@ void play_frame(const Input *in) {
             vita2d_draw_rectangle(x, y, size, size, RGBA8(20, 22, 30, 255));
             if (t) draw_fit(t, x, y, size, size, i == sel ? WHITE : RGBA8(255, 255, 255, 140), 0);
             else {
-                char ini[3] = {0};
-                const char *n = S->games[i].title;
-                ini[0] = n[0];
-                for (const char *q = n + 1; *q; ++q)
-                    if ((q[-1] == ' ' || q[-1] == '_' || q[-1] == '-') && ((*q >= 'A' && *q <= 'Z') || (*q >= 'a' && *q <= 'z') || (*q >= '0' && *q <= '9'))) { ini[1] = *q; break; }
-                if (ini[0] >= 'a' && ini[0] <= 'z') ini[0] -= 32;
-                if (ini[1] >= 'a' && ini[1] <= 'z') ini[1] -= 32;
+                char ini[8];
+                ui_initials(NZ(S->games[i].title), ini, sizeof(ini));
+                for (char *c = ini; *c; ++c) if (*c >= 'a' && *c <= 'z') *c -= 32;
                 int fs = (int)(size * 0.36f);
                 uifont_draw(bold, x + size / 2 - uifont_width(bold, fs, ini) / 2, y + size / 2 + fs / 3,
                                       i == sel ? S->accent : DIM, fs, ini);

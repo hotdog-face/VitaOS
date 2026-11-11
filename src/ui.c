@@ -15,6 +15,7 @@
 #include <psp2/common_dialog.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/threadmgr.h>
+#include <png.h>
 
 #include "ui.h"
 #include "lang.h"
@@ -281,6 +282,25 @@ static void round_corners(vita2d_texture *t, float frac) {
     }
 }
 
+/* Any PNG at all, through libpng's simplified reader: interlaced, paletted,
+ * grey, 16-bit. vita2d's own loader gives up on interlaced files, and many
+ * app icons are interlaced, which left them as letter tiles (issues 1 and 4). */
+static vita2d_texture *load_png_any(const char *path) {
+    png_image img;
+    memset(&img, 0, sizeof(img));
+    img.version = PNG_IMAGE_VERSION;
+    if (!png_image_begin_read_from_file(&img, path)) return NULL;
+    img.format = PNG_FORMAT_RGBA;
+    if (img.width == 0 || img.height == 0 || img.width > 4096 || img.height > 4096) { png_image_free(&img); return NULL; }
+    vita2d_texture *t = vita2d_create_empty_texture(img.width, img.height);
+    if (!t) { png_image_free(&img); return NULL; }
+    if (!png_image_finish_read(&img, NULL, vita2d_texture_get_datap(t), vita2d_texture_get_stride(t), NULL)) {
+        vita2d_free_texture(t);                   /* never drawn: no GPU wait needed */
+        return NULL;
+    }
+    return t;
+}
+
 static int img_worker(SceSize args, void *argp) {
     (void)args; (void)argp;
     char path[200];
@@ -312,6 +332,7 @@ static int img_worker(SceSize args, void *argp) {
                 int png = magic[0] == 0x89 && magic[1] == 'P';
                 if (!jpeg && !png) jpeg = dot && (!strcasecmp(dot, ".jpg") || !strcasecmp(dot, ".jpeg"));
                 t = jpeg ? vita2d_load_JPEG_file(path) : vita2d_load_PNG_file(path);
+                if (!t && !jpeg) t = load_png_any(path);
             }
             if (t && round) round_corners(t, 0.22f);
             imgs[pick].tex = t;
@@ -475,6 +496,23 @@ void draw_round_gradient(float x, float y, float w, float h, float r, unsigned i
     vita2d_draw_array(SCE_GXM_PRIMITIVE_TRIANGLE_FAN, v, n + 2);
 }
 
+/* A tile's initials, whole characters at a time: "Super Mario" -> "SM",
+ * "ペルソナ４" -> "ペ". Taking the first byte showed "?" for every name that
+ * does not start with plain ASCII (issue 4). */
+static int utf8_len(unsigned char c) { return c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1; }
+void ui_initials(const char *name, char *out, int max) {
+    int n = 0;
+    while (*name == ' ' || *name == '<' || *name == '[' || *name == '(') ++name;
+    if (!*name) { snprintf(out, max, "?"); return; }
+    int l = utf8_len((unsigned char)*name);
+    for (int k = 0; k < l && name[k] && n < max - 1; ++k) out[n++] = name[k];
+    if (l == 1) {                                   /* Latin: add the next word's first letter */
+        for (const char *q = name + 1; *q; ++q)
+            if (q[-1] == ' ' && *q != ' ' && (unsigned char)*q < 0x80) { if (n < max - 1) out[n++] = *q; break; }
+    }
+    out[n] = 0;
+}
+
 /* An app icon the Android way: a rounded tile with a soft shadow; a shimmer
  * while it loads; the name's initials on a tinted tile if there is none. */
 void draw_app_icon(const char *path, float x, float y, float size, const char *name, int dim) {
@@ -495,8 +533,8 @@ void draw_app_icon(const char *path, float x, float y, float size, const char *n
     static const unsigned int tints[] = {0x3B82F6, 0x8B5CF6, 0x10B981, 0xF59E0B, 0xEF4444, 0x06B6D4, 0xEC4899};
     unsigned int c = tints[hsh % 7];
     draw_round_rect(x, y, size, size, size * 0.22f, RGBA8((c >> 16) & 255, (c >> 8) & 255, c & 255, 255));
-    char ini[3] = {name[0], 0, 0};
-    for (const char *q = name + 1; *q; ++q) if (q[-1] == ' ' && *q != ' ') { ini[1] = *q; break; }
+    char ini[8];
+    ui_initials(name, ini, sizeof(ini));
     int fs = (int)(size * 0.36f), iw = text_w(bold, fs, ini);
     text(bold, (int)(x + (size - iw) / 2), (int)(y + size / 2 + fs * 0.36f), RGBA8(255, 255, 255, 240), fs, ini);
 }
@@ -525,8 +563,8 @@ void draw_made_cover(const char *name, const char *sub, float x, float y, float 
 #define RGB_(c, al) RGBA8(((c) >> 16) & 255, ((c) >> 8) & 255, (c) & 255, al)
     draw_round_gradient(x, y, s, s, ui_corner(s, s), RGB_(b, al), RGB_(a, al));
     draw_soft(ui_glow(), x + s * 0.34f, y + s * 0.3f, s * 0.62f, s * 0.56f, RGBA8(255, 255, 255, 34));   /* kept inside the tile */
-    char ini[3] = {name[0] == '<' ? '?' : name[0], 0, 0};
-    for (const char *q = name + 1; *q; ++q) if (q[-1] == ' ' && *q != ' ') { ini[1] = *q; break; }
+    char ini[8];
+    ui_initials(name, ini, sizeof(ini));
     int fs = (int)(s * 0.34f);
     text(bold, (int)(x + s * 0.1f), (int)(y + s * 0.5f), RGBA8(255, 255, 255, 235), fs, ini);
     int ts = (int)(s * 0.1f);
