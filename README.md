@@ -33,8 +33,8 @@ trademarks of Sony Interactive Entertainment.
   keeps playing while you browse.
 - **Apps:** your installed apps as a tidy grid you can rearrange (hold X), plus
   Camera, Photos and Voice Memos built in.
-- **Downloads:** a homebrew store (VitaHomebrewDB), sorted by what is most
-  popular, with installs on the Vita itself.
+- **Store:** homebrew from VitaHomebrewDB and CBPS-DB, sorted by what is most
+  popular, with installs and updates on the Vita itself.
 - **Files, Settings, search,** an on-screen keyboard, toasts, UI sounds and
   a live, tilt-aware background.
 
@@ -52,50 +52,87 @@ VitaOS speaks English, Español, Português, Français, Deutsch, Italiano, 日�
 
 ## Install
 
-You need a Vita running HENkaku or Enso, with VitaShell.
+**What you need:** a PS Vita (or PS TV) that can run homebrew: HENkaku, h-encore
+or Ensō, with VitaShell. If yours can't yet, follow
+[vita.hacks.guide](https://vita.hacks.guide) first; it takes about 20 minutes.
 
-1. Download `VitaOS.vpk` from [Releases](../../releases).
-2. Install it with VitaShell.
-3. Open VitaOS from its bubble.
+1. On a computer or phone, download **`VitaOS.vpk`** from
+   [the latest release](../../releases/latest).
+2. Copy it to the Vita. The easiest way is VitaShell's USB mode (press SELECT
+   in VitaShell, plug in the cable, copy the file to `ux0:`), or VitaShell's
+   FTP mode over Wi-Fi.
+3. In VitaShell, find `VitaOS.vpk`, press X and choose **Install**.
+4. Open **VitaOS** from its bubble.
 
-### Optional: make VitaOS feel like the Vita's own OS
+### Make VitaOS open when the Vita starts
 
-With the small `vitaos_ps.suprx` plugin:
+In VitaOS go to **Settings > VitaOS > Start at power-on** and press X. VitaOS
+sets up its small plugin by itself (it keeps a copy of your old plugin list),
+then asks to restart. From then on:
 
-- the Vita starts in VitaOS at power-on (turn it off in Settings > VitaOS >
-  Start at boot, or hold L while powering on to skip all plugins once)
-- pressing PS inside VitaOS goes back to its Home tab, the way HOME works on a
-  Switch
-- a game you started from VitaOS brings you back to VitaOS when it ends
+- the Vita starts in VitaOS,
+- a game you started from VitaOS comes back to VitaOS when it ends,
+- PS inside VitaOS goes to its Home tab.
 
-Without it, the Vita behaves as usual.
+To undo it, use the same row: **VitaOS plugin > Remove the plugin**.
 
-1. Copy `vitaos_ps.suprx` to `ur0:tai/`.
-2. Add these two lines to `ur0:tai/config.txt`:
-   ```
-   *main
-   ur0:tai/vitaos_ps.suprx
-   ```
-   If there is already a `*main` line, add only the second line under it.
-3. Restart the Vita.
+**If the Vita ever starts badly,** hold **L** while turning it on: that skips
+every plugin for that start. Your old plugin list is saved next to it as
+`tai/config.txt.before-vitaos`.
+
+<details><summary>Doing it by hand instead</summary>
+
+Copy `vitaos_ps.suprx` (from the release) to `ur0:tai/`, then add it under
+`*main` in the `config.txt` your Vita uses (`ux0:tai/config.txt` if it
+exists, otherwise `ur0:tai/config.txt`):
+
+```
+*main
+ur0:tai/vitaos_ps.suprx
+```
+
+If there is already a `*main` line, add only the second line under it, then restart.
+</details>
+
+### Updating
+
+VitaOS checks for a new version once a day and says so on Home. Then go to
+**Settings > VitaOS > Update** (or press START anywhere in Settings): it
+downloads, installs and reopens by itself. Your games, settings and
+favourites stay.
+
+### If something goes wrong
+
+- **VitaOS closed unexpectedly:** next time it opens it shows a QR code. Scan
+  it with your phone to open a bug report that is already filled in. If you
+  can, attach the crash file it names (in `ux0:data`).
+- **A song or film won't play:** VitaOS plays AAC `.m4a` songs and H.264
+  `.mp4` films up to 960x544. It fixes the common problems in those files by
+  itself the first time you play them. Apple Lossless and other formats need
+  converting to AAC first.
+- **A game shows up in Apps instead of Play** (or the other way round):
+  Triangle on it in Apps > **Show in Play**, or START on it in Play > **Move
+  it to Apps**.
 
 ## Your content
 
 VitaOS finds everything on the card by itself. It looks again every time it
-starts.
+starts (or choose Settings > VitaOS > Find games again).
 
-| What | Where |
+| What | Put it here |
 |---|---|
-| Retro games | RetroArch playlists (`ux0:data/retroarch/playlists`), then ROM folders such as `ux0:data/RetroFlow/ROMS/<system>/` or `ux0:roms/<system>/` |
-| Box art | RetroFlow's `COVERS` folders or RetroArch's thumbnails |
-| PSP games | `ux0:pspemu/PSP/GAME` (launched through RetroFlow's Adrenaline bubble) |
-| PS Vita games | Installed games, found automatically |
+| PS Vita games | Installed games are found automatically |
+| PSP and PS1 games | `ux0:pspemu/ISO` and `ux0:pspemu/PSP/GAME` (needs Adrenaline; RetroFlow's launcher or an Adrenaline bubble starts a game directly) |
+| Retro games | `ux0:roms/<console>/`, e.g. `ux0:roms/snes`, or RetroArch playlists. Needs [RetroArch](https://www.retroarch.com/) and its cores |
+| Nintendo 64 | `ux0:roms/n64` (needs DaedalusX64) |
+| Nintendo DS | `ux0:data/dsvita` or `ux0:roms/nds` (needs DSVita) |
+| Dreamcast | `ux0:roms/dreamcast` (needs Flycast) |
+| Box art | Downloaded by itself; RetroFlow's and RetroArch's art is used too |
 | Films | `.mp4` (H.264, up to 960x544) in `ux0:video/` |
-| Music | `.m4a` files in `ux0:data/music/`, tagged with title, artist and album |
+| Music | `.m4a` (AAC) in `ux0:data/music/`, tagged with title, artist and album |
 | Photos | Everything in `ux0:picture/` |
 
-Retro games need [RetroArch](https://www.retroarch.com/) installed. N64 games need
-DaedalusX64.
+Most of these emulators are in VitaOS's Store tab.
 
 ## Build from source
 
@@ -107,7 +144,10 @@ cmake ..
 make
 ```
 
-This produces `VitaOS.vpk`. For the plugin, build the same way in `plugin/`.
+Build `plugin/` first and copy `vitaos_ps.suprx` to `assets/plugin/` (VitaOS
+ships it), and `updater/` for `assets/updater.vpk`; `.github/workflows/build.yml`
+does all three in order. Tests that run on a computer: `tools/test_mp4fix.sh`
+and `tools/test_sysint.sh`. Crash dumps: `tools/crashdump.py`.
 
 ## Credits
 
