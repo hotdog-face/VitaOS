@@ -8,7 +8,8 @@
 void play_init(void);
 void play_reload(void);               /* the library on the card changed */
 void play_frame(const Input *in);     /* draws the tab's content */
-int play_fullscreen(void);            /* the attract reel: no tab bar or footer */
+int play_fullscreen(void);
+int play_at_rest(void);               /* the carousel, nothing open: safe to reload */            /* the attract reel: no tab bar or footer */
 const char *play_context(void);       /* e.g. "PlayStation   12 / 340" */
 const char *play_hint(void);
 void play_leave(void);

@@ -465,6 +465,23 @@ static void library_rescan_now(void) {                /* Settings > VitaOS > Fin
     ui_toast("Looking for games\xE2\x80\xA6", C_ACCENT);
 }
 
+/* The same, without the toasts or the Mac-catalog message: for a Mac-built
+ * catalog the top-up adds the game on its next run. */
+static int topup_thread(SceSize args, void *argp);
+static void library_rescan_quiet(void) {
+    if (library_is_ours() == 0) {
+        SceUID tt = sceKernelCreateThread("lib_topup", topup_thread, 0x10000110, NET_STACK, 0, 0, NULL);
+        if (tt >= 0) sceKernelStartThread(tt, 0, NULL);
+        return;
+    }
+    if (lib_done < 0 && lib_before >= 0) return;
+    lib_before = -2;                                 /* reload whatever the count */
+    lib_found = 0;
+    lib_done = -1;
+    lib_applied = 0;
+    lib_start();
+}
+
 static volatile int art_done, art_got, art_running, art_quiet;
 static int art_thread(SceSize args, void *argp) {
     (void)args; (void)argp;
@@ -539,7 +556,7 @@ static void library_poll(int on_play) {
 #define applied lib_applied
     if (applied || lib_done < 0 || lib_before == -1) return;
     if (lib_done == lib_before) { applied = 1; return; }
-    if (on_play) return;                             /* not under the player's feet */
+    if (on_play && !play_at_rest()) return;          /* not under the player's feet */
     applied = 1;
     play_reload();
     lib_save_count(lib_done);
@@ -793,6 +810,7 @@ int main(void) {
             ui_end_frame();
             continue;
         }
+        if (library_rescan_wanted) { library_rescan_wanted = 0; library_rescan_quiet(); }   /* Apps > Show in Play */
         library_poll(tab == T_PLAY);
         battery_tick();                                  /* Settings > Battery health measures time per charge */
         if (topup_added > 0 && tab != T_PLAY) {          /* not under the player's feet */

@@ -679,6 +679,116 @@ static int store_says_game(const char *store, const char *tid) {
     return type && (type[1] == '1' || type[1] == '2') && type[2] == '"';
 }
 
+/* Where the player put an app themselves (Apps: Triangle > Show in Play;
+ * Play: Triangle > Move to Apps), one title ID a line. Issue 9: homebrew
+ * games and Adrenaline bubbles showed in Apps, and there was no way to move
+ * them. */
+#define PLAY_LIST "ux0:data/arcadehub/user/play-apps.txt"
+#define APPS_LIST "ux0:data/arcadehub/user/apps-only.txt"
+
+static int listed_in(const char *file, const char *tid) {
+    char buf[4096];
+    SceUID fd = sceIoOpen(file, SCE_O_RDONLY, 0);
+    if (fd < 0) return 0;
+    int n = sceIoRead(fd, buf, sizeof(buf) - 1);
+    sceIoClose(fd);
+    buf[n > 0 ? n : 0] = 0;
+    for (char *line = strtok(buf, "\r\n"); line; line = strtok(NULL, "\r\n"))
+        if (!strncmp(line, tid, 9)) return 1;
+    return 0;
+}
+
+volatile int library_rescan_wanted;
+
+int library_user_choice(const char *tid) {
+    if (listed_in(APPS_LIST, tid)) return -1;
+    if (listed_in(PLAY_LIST, tid)) return 1;
+    return 0;
+}
+
+static void list_set(const char *file, const char *tid, int on) {
+    char buf[4096], out[4096];
+    SceUID fd = sceIoOpen(file, SCE_O_RDONLY, 0);
+    int n = fd >= 0 ? sceIoRead(fd, buf, sizeof(buf) - 1) : 0;
+    if (fd >= 0) sceIoClose(fd);
+    buf[n > 0 ? n : 0] = 0;
+    int o = 0;
+    for (char *line = strtok(buf, "\r\n"); line; line = strtok(NULL, "\r\n"))
+        if (strncmp(line, tid, 9) && o < (int)sizeof(out) - 12) o += snprintf(out + o, sizeof(out) - o, "%.9s\n", line);
+    if (on && o < (int)sizeof(out) - 12) o += snprintf(out + o, sizeof(out) - o, "%.9s\n", tid);
+    sceIoMkdir("ux0:data/arcadehub/user", 0777);
+    fd = sceIoOpen(file, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
+    if (fd >= 0) { sceIoWrite(fd, out, o); sceIoClose(fd); }
+}
+
+void library_set_user_choice(const char *tid, int where) {
+    list_set(PLAY_LIST, tid, where > 0);
+    list_set(APPS_LIST, tid, where < 0);
+}
+
+/* An Adrenaline bubble (Adrenaline Bubble Manager, AdrBubbleBooter, RetroFlow's
+ * launcher): an app whose data/boot.bin names a PSP or PS1 game at 0x40. */
+int library_bubble_target(const char *tid, char *out, int max) {
+    char path[64];
+    snprintf(path, sizeof(path), "ux0:app/%.9s/data/boot.bin", tid);
+    unsigned char b[0x140];
+    SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
+    if (fd < 0) return 0;
+    int n = sceIoRead(fd, b, sizeof(b));
+    sceIoClose(fd);
+    if (n < 0x41) return 0;
+    char target[257];
+    int len = 0;
+    for (int i = 0x40; i < n && i < 0x140 && b[i] && len < 256; ++i) target[len++] = (char)b[i];
+    target[len] = 0;
+    const char *colon = strchr(target, ':');
+    const char *dot = strrchr(target, '.');
+    if (!colon || colon - target > 5 || !dot) return 0;
+    if (strcasecmp(dot, ".iso") && strcasecmp(dot, ".cso") && strcasecmp(dot, ".pbp") && strcasecmp(dot, ".zso") &&
+        strcasecmp(dot, ".dax"))
+        return 0;
+    if (out) snprintf(out, max, "%s", target);
+    return 1;
+}
+
+/* The bubble that boots this PSP/PS1 game, if the player made one: then
+ * Play launches the game itself even without RetroFlow's launcher (issue 9:
+ * "PS1 games just launch Adrenaline"). Paths are compared without case and
+ * without the device's "/pspemu/" spelling differences. */
+static void path_key(const char *in, char *out, int max) {
+    const char *p = strstr(in, "pspemu/");
+    if (!p) p = strstr(in, "PSPEMU/");
+    if (!p) { const char *c = strchr(in, ':'); p = c ? c + 1 : in; }
+    int n = 0;
+    for (; *p && n < max - 1; ++p) out[n++] = (*p >= 'A' && *p <= 'Z') ? *p + 32 : *p;
+    out[n] = 0;
+}
+
+int library_bubble_for(const char *game_path, char *tid_out) {
+    char want[260], got[260], key[260];
+    path_key(game_path, want, sizeof(want));
+    List l = list_dir("ux0:app");
+    int found = 0;
+    for (int i = 0; i < l.n && !found; ++i) {
+        if (strlen(l.names[i]) != 9 || !strcmp(l.names[i], "RETROLNCR")) continue;
+        if (!library_bubble_target(l.names[i], got, sizeof(got))) continue;
+        path_key(got, key, sizeof(key));
+        if (!strcmp(key, want)) { snprintf(tid_out, 10, "%s", l.names[i]); found = 1; }
+    }
+    list_free(&l);
+    return found;
+}
+
+/* Play or Apps for an installed app: the player's choice first, then retail
+ * games, Adrenaline bubbles, and what the Store calls a game or a port. */
+static int is_game_app(const char *store, const char *tid) {
+    int choice = library_user_choice(tid);
+    if (choice) return choice > 0;
+    if (!strncmp(tid, "PCS", 3) && tid[3] >= 'A' && tid[3] <= 'H') return 1;
+    if (library_bubble_target(tid, NULL, 0)) return 1;
+    return store_says_game(store, tid);
+}
+
 static void scan_vita(void) {
     char *store = NULL;
     SceUID fd = sceIoOpen("ux0:data/arcadehub/store/apps.json", SCE_O_RDONLY, 0);
@@ -694,8 +804,7 @@ static void scan_vita(void) {
     for (int i = 0; i < l.n; ++i) {
         const char *tid = l.names[i];
         if (strlen(tid) != 9 || !strncmp(tid, "MVZA", 4) || !strncmp(tid, "VITAOS", 6)) continue;
-        int retail = !strncmp(tid, "PCS", 3);
-        if (!retail && !store_says_game(store, tid)) continue;
+        if (!is_game_app(store, tid)) continue;
         char title[160], icon[96], pic[96];
         sfo_title(tid, title, sizeof(title));
         if (!title[0]) continue;
@@ -765,7 +874,7 @@ int library_topup_vita(void) {
         const char *tid = l.names[i];
         if (strlen(tid) != 9 || !strncmp(tid, "MVZA", 4) || !strncmp(tid, "VITAOS", 6)) continue;
         int retail = !strncmp(tid, "PCS", 3) && tid[3] >= 'A' && tid[3] <= 'H';
-        if (!retail && !store_says_game(store, tid)) continue;
+        if (!is_game_app(store, tid)) continue;
         char key[16];
         snprintf(key, sizeof(key), "\t%s\t", tid);
         if (strstr(shelf, key)) continue;

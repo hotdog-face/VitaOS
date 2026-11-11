@@ -16,6 +16,7 @@
 #include <math.h>
 #include "sfx.h"
 #include "apps.h"
+#include "library.h"
 #include "search.h"
 #include "camera.h"
 #include "memo.h"
@@ -136,7 +137,9 @@ static void scan(void) {
         if (!strcmp(a->tid, "VTOSUPDTR") || !strcmp(a->tid, "VTOSPAUSE")) continue;
         char key[16];
         snprintf(key, sizeof(key), "\t%s\t", a->tid);
-        if (games && strstr(games, key)) continue;   /* a game: it lives in Play */
+        int choice = library_user_choice(a->tid);   /* the player's own choice wins (issue 9) */
+        if (choice > 0) continue;
+        if (!choice && games && strstr(games, key)) continue;   /* a game: it lives in Play */
         ++napps;
     }
     sceIoDclose(d);
@@ -258,10 +261,18 @@ const char *apps_hint(void) {
 
 static void options(int i) {
     App *a = &apps[i];
-    static const char *const items[] = {"About this app", "Delete this app"};
-    int k = ui_menu(a->title, items, 2);
+    static const char *const items[] = {"About this app", "Show in Play", "Delete this app"};
+    int k = ui_menu(a->title, items, 3);
     if (k == 0) info(a);
-    if (k == 1) {
+    if (k == 1) {                                     /* a game that Apps took for an app (issue 9) */
+        library_set_user_choice(a->tid, 1);
+        library_rescan_wanted = 1;
+        char m[120];
+        snprintf(m, sizeof(m), "%.60s moves to Play", a->title);
+        ui_toast(m, C_ACCENT);
+        loaded = 0;                                   /* scan again without it */
+    }
+    if (k == 2) {
         char msg[200];
         snprintf(msg, sizeof(msg), "Delete %s? The app and its data are removed from the Vita. This can't be undone.", a->title);
         if (ui_confirm("Delete app", msg) && store_uninstall(a->tid, a->title) == 0) ui_toast("Deleting\xE2\x80\xA6", C_ACCENT);

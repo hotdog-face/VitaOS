@@ -20,4 +20,13 @@ int library_fetch_art(volatile int *done, volatile int *got);
 /* Test: box art for the catalog under ROOT, at most CAP tries per system. */
 int library_art_into(const char *root, int cap, volatile int *done, volatile int *got);
 
+/* Play or Apps, by the player's own choice: 1 Play, -1 Apps, 0 not chosen. */
+int library_user_choice(const char *tid);
+void library_set_user_choice(const char *tid, int where);
+/* An Adrenaline bubble's game (from its data/boot.bin); 0 if tid is not one. */
+extern volatile int library_rescan_wanted;   /* set by Apps; the main loop rescans */
+int library_bubble_target(const char *tid, char *out, int max);
+
+int library_bubble_for(const char *game_path, char *tid_out);   /* tid_out: 10 bytes */
+
 #endif

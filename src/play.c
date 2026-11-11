@@ -31,6 +31,8 @@
 #include "video.h"
 #include "ui.h"
 #include "play.h"
+#include "apps.h"
+#include "library.h"
 #include "store.h"
 #include "sfx.h"
 #include "search.h"
@@ -460,6 +462,9 @@ static void hide_game(int sys, int sel, int delete_rom) {
         const char *rom = rom_path(&g);
         if (rom && *rom) sceIoRemove(rom);
         else if (!strcmp(g.kind, "app")) store_uninstall(g.a1, g.title);   /* an installed Vita game */
+    } else if (!strcmp(g.kind, "app")) {
+        library_set_user_choice(g.a1, -1);           /* an app that is not a game: Apps shows it again (issue 9) */
+        apps_prewarm();
     }
     /* drop it from its real system, then rebuild every list from those */
     System *real = &systems[g.origin];
@@ -885,11 +890,14 @@ static int launch(const Game *g) {
          * opens and the game is picked there (VitaOS cannot hand Adrenaline
          * an ISO by itself). */
         SceIoStat lst;
+        char bubble[10];
         if (sceIoGetstat("ux0:app/RETROLNCR/eboot.bin", &lst) >= 0 && write_psp_boot(g->a1) >= 0)
             snprintf(uri, sizeof(uri), "psgm:play?titleid=RETROLNCR");
+        else if (library_bubble_for(g->a1, bubble))  /* the player's own Adrenaline bubble for it */
+            snprintf(uri, sizeof(uri), "psgm:play?titleid=%s", bubble);
         else {
             snprintf(uri, sizeof(uri), "psgm:play?titleid=PSPEMUCFW");
-            ui_toast("Adrenaline opens: pick the game there", C_ACCENT);
+            ui_toast("Adrenaline opens: pick the game there (a bubble for it, or RetroFlow, starts it directly)", C_ACCENT);
         }
     } else return -1;
     /* The SceShell bridge (vabridge >= 3.2) taps OK on the "Arcade Hub will
@@ -1452,7 +1460,7 @@ void play_frame(const Input *in) {
             int del = (pressed & SCE_CTRL_SQUARE) != 0;
             const char *rom = rom_path(&S->games[sel]);
             int app = !strcmp(S->games[sel].kind, "app");
-            snprintf(toast, sizeof(toast), del && (rom || app) ? (app ? "Uninstalling %.60s" : "Deleted %.60s") : "Removed %.60s", S->games[sel].title);
+            snprintf(toast, sizeof(toast), del && (rom || app) ? (app ? "Uninstalling %.60s" : "Deleted %.60s") : app ? "Moved %.60s to Apps" : "Removed %.60s", S->games[sel].title);
             hide_game(sys, sel, del);
             toast_frames = 150; toast_ok = 1;
             confirm = 0;
@@ -1706,7 +1714,7 @@ void play_frame(const Input *in) {
             draw_round_rect(120, 160, W - 240, 230, 22, RGBA8(30, 34, 46, 250));
             uifont_draw(bold, 150, 212, WHITE, 26, "Remove this game?");
             draw_wrapped(font, g->title, 150, 250, W - 300, 20, 2, DIM);
-            draw_hints(150, 312, "X Remove from the menu", WHITE, W - 150);
+            draw_hints(150, 312, app ? "X Move it to Apps" : "X Remove from the menu", WHITE, W - 150);
             draw_hints(150, 344, rom ? "[] Remove and delete the file from the Vita"
                                  : app ? "[] Remove and uninstall it from the Vita" : "[] (no file to delete)",
                        rom || app ? WHITE : FAINT, W - 150);
@@ -1771,6 +1779,9 @@ void play_frame(const Input *in) {
 }
 
 int play_fullscreen(void) { return fullscreen; }
+/* On the consoles carousel with nothing open: a reload changes nothing the
+ * player is looking at closely. */
+int play_at_rest(void) { return view == 0 && !details && !attract && !confirm && !touching; }
 
 /* PS during the attract reel: back to exactly where you were (a second PS
  * then goes Home, like the Switch). Returns 1 if there was a reel to leave. */
