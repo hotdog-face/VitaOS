@@ -176,9 +176,10 @@ static void widgets(void) {
     if (dls) h += 44;
     vita2d_draw_rectangle(x, y, w, h, RGBA8(18, 21, 30, 170));
     vita2d_draw_rectangle(x, y, w, 1, RGBA8(255, 255, 255, 28));
-    snprintf(line, sizeof(line), "%d:%02d", t.hour % 12 ? t.hour % 12 : 12, t.minute);
+    int h24 = ui_clock_24h();
+    snprintf(line, sizeof(line), h24 ? "%02d:%02d" : "%d:%02d", h24 ? t.hour : (t.hour % 12 ? t.hour % 12 : 12), t.minute);
     text(bold, x + 18, y + 50, C_TEXT, 40, line);
-    text(font, x + 22 + text_w(bold, 40, line), y + 50, C_DIM, 16, t.hour < 12 ? "AM" : "PM");
+    if (!h24) text(font, x + 22 + text_w(bold, 40, line), y + 50, C_DIM, 16, t.hour < 12 ? "AM" : "PM");
     snprintf(small, sizeof(small), "%s, %s %d", tr(days[dow % 7]), tr(months[(t.month + 11) % 12]), t.day);
     text(font, x + 20, y + 76, C_DIM, 15, small);
     int pct = scePowerGetBatteryLifePercent(), mins = scePowerGetBatteryLifeTime();

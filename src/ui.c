@@ -9,6 +9,8 @@
 #include <psp2/ctrl.h>
 #include <psp2/touch.h>
 #include <psp2/rtc.h>
+#include <psp2/apputil.h>
+#include <psp2/system_param.h>
 #include <psp2/power.h>
 #include <psp2/net/netctl.h>
 #include <psp2/ime_dialog.h>
@@ -938,6 +940,21 @@ void ui_read_input(Input *in) {
         b = s;
         fresh = 1;
     }
+    /* Timestamps that stop moving forward (a controller plugin that rewrites
+     * them, one bogus sample far in the future, or a reset after sleep) made
+     * every later sample look old: the buttons went dead while touch still
+     * worked, until VitaOS restarted (issues 1 and 19). Then trust the newest
+     * sample and resynchronise. */
+    if (!fresh && n > 0) {
+        const SceCtrlData *p = &pads[n - 1];
+        unsigned int s = p->buttons;
+        if (p->ly < 40) s |= SCE_CTRL_UP;
+        if (p->ly > 215) s |= SCE_CTRL_DOWN;
+        if (p->lx < 40) s |= SCE_CTRL_LEFT;
+        if (p->lx > 215) s |= SCE_CTRL_RIGHT;
+        if (p->timeStamp < last_ts) last_ts = p->timeStamp;
+        if (s != (last & ~0x10000u)) { seen = s; b = s; fresh = 1; }
+    }
     /* The PS button, for the app that holds the PS lock: the "2" read may
      * carry it where the plain one does not (bridge note is the fallback). */
     {
@@ -1098,12 +1115,29 @@ static int wifi_connected(void) {
 /* The clock/battery string and the x where it starts. Shared by draw_header
  * and header_icon_centers so a touch this frame (checked in main.c before
  * draw_header runs) lines up with what actually gets painted. */
+/* The Vita's own 12/24-hour setting (Settings > Date & Time > Time Format),
+ * read once a minute (issue 1: "the AM/PM format is really only specific to
+ * certain countries"). */
+int ui_clock_24h(void) {
+    static int v = -1;
+    static SceUInt64 at;
+    SceUInt64 now = sceKernelGetProcessTimeWide();
+    if (v < 0 || now - at > 60000000ULL) {
+        int f = 0;
+        v = sceAppUtilSystemParamGetInt(SCE_SYSTEM_PARAM_ID_TIME_FORMAT, &f) >= 0 && f == SCE_SYSTEM_PARAM_TIME_FORMAT_24HR;
+        at = now;
+    }
+    return v;
+}
+
 static void header_clock_text(char *out, int max, int *right_x) {
     SceDateTime t;
     sceRtcGetCurrentClockLocalTime(&t);
-    int h = t.hour % 12 ? t.hour % 12 : 12;
-    snprintf(out, max, "%d:%02d %s    %d%%%s", h, t.minute, t.hour < 12 ? "AM" : "PM",
-             scePowerGetBatteryLifePercent(), scePowerIsBatteryCharging() ? " +" : "");
+    if (ui_clock_24h())
+        snprintf(out, max, "%d:%02d    %d%%%s", t.hour, t.minute, scePowerGetBatteryLifePercent(), scePowerIsBatteryCharging() ? " +" : "");
+    else
+        snprintf(out, max, "%d:%02d %s    %d%%%s", t.hour % 12 ? t.hour % 12 : 12, t.minute, t.hour < 12 ? "AM" : "PM",
+                 scePowerGetBatteryLifePercent(), scePowerIsBatteryCharging() ? " +" : "");
     if (right_x) *right_x = W - 30 - text_w(font, 18, out);
 }
 
