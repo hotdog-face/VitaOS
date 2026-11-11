@@ -38,7 +38,8 @@ static char ROOT_[64] = "ux0:data/arcadehub/";
 #define MAX_GAMES 12000
 
 typedef struct {
-    const char *id, *name, *accent, *core, *kind;   /* kind: "ra" RetroArch, "n64" DaedalusX64 */
+    const char *id, *name, *accent, *core, *kind;   /* kind: "ra" RetroArch, "n64" DaedalusX64, "ext" a standalone
+                                                      * emulator: core is its title ID, launched with &param=<rom> */
     const char *exts;                                /* " nes fds zip " */
     const char *dirs[6];                             /* folder names, the RetroArch one first */
 } Sys;
@@ -87,6 +88,10 @@ static const Sys SYS[] = {
     {"atarist", "Atari ST", "94a3b8", "hatari", "ra", " st msa stx zip 7z ", {"Atari - ST", "atarist", 0}},
     {"pico8", "PICO-8", "fb7185", "retro8", "ra", " p8 png ", {"Lexaloffle Games - Pico-8", "pico8", 0}},
     {"dos", "DOS", "a3a3a3", "dosbox_pure", "ra", " zip dosz ", {"DOS", "dos", 0}},
+    /* Standalone emulators (issue 6): DSVita reads "&param=<rom>" (src/presenter/vita.rs),
+     * Flycast the same (RetroFlow's launcher). Listed only when installed. */
+    {"nds", "Nintendo DS", "e5e7eb", "DSVITA000", "ext", " nds ", {"Nintendo - Nintendo DS", "nds", "dsvita", 0}},
+    {"dc", "Dreamcast", "f97316", "FLYCASTDC", "ext", " cdi gdi chd ", {"Sega - Dreamcast", "dreamcast", "dc", 0}},
 };
 #define NSYS (int)(sizeof(SYS) / sizeof(SYS[0]))
 
@@ -331,6 +336,7 @@ static void scan_folder(int s, const char *dir, const char *folder, int depth) {
         nice_title(e.d_name, title, sizeof(title));
         art_for(&art, stem, cover, bg);
         if (!strcmp(SYS[s].kind, "n64")) add(s, title, "n64", path, "", cover, bg);
+        else if (!strcmp(SYS[s].kind, "ext")) { if (!strchr(path, '&')) add(s, title, "ext", SYS[s].core, path, cover, bg); }
         else {
             char core[96];
             snprintf(core, sizeof(core), CORE, SYS[s].core);
@@ -342,13 +348,22 @@ static void scan_folder(int s, const char *dir, const char *folder, int depth) {
 }
 
 static void scan_roms(void) {
+    /* DSVita's own folder holds the games directly */
+    if (exists("ux0:app/DSVITA000/eboot.bin") && exists("ux0:data/dsvita")) {
+        int s = sys_for_name("nds");
+        if (s >= 0) scan_folder(s, "ux0:data/dsvita", "nds", 0);
+    }
     for (int r = 0; ROM_ROOTS[r]; ++r) {
         List l = list_dir(ROM_ROOTS[r]);
         for (int i = 0; i < l.n; ++i) {
             int s = sys_for_name(l.names[i]);
             if (s < 0) continue;
             if (!strcmp(SYS[s].kind, "n64") && !exists("ux0:app/DEDALOX64")) continue;
-            if (SYS[s].core) {                            /* only systems whose RetroArch core is installed */
+            if (!strcmp(SYS[s].kind, "ext")) {
+                char ap[48];
+                snprintf(ap, sizeof(ap), "ux0:app/%s/eboot.bin", SYS[s].core);
+                if (!exists(ap)) continue;
+            } else if (SYS[s].core) {                            /* only systems whose RetroArch core is installed */
                 char cp[96];
                 snprintf(cp, sizeof(cp), "ux0:app/RETROVITA/%s_libretro.self", SYS[s].core);
                 if (!exists(cp)) continue;

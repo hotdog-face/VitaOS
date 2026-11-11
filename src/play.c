@@ -352,7 +352,7 @@ static void apply_hidden(void) {
 /* The ROM path the launcher would use, or NULL when there is nothing to delete
  * (installed apps and ScummVM folders are left alone). */
 static const char *rom_path(const Game *g) {
-    if (!strcmp(g->kind, "ra")) return g->a2;
+    if (!strcmp(g->kind, "ra") || !strcmp(g->kind, "ext")) return g->a2;
     if (!strcmp(g->kind, "n64") || !strcmp(g->kind, "psp")) return g->a1;
     return NULL;
 }
@@ -884,6 +884,13 @@ static int launch(const Game *g) {
     }
     else if (!strcmp(g->kind, "ra")) snprintf(uri, sizeof(uri), "psgm:play?titleid=RETROVITA&param=%s&param2=%s", g->a1, g->a2);
     else if (!strcmp(g->kind, "n64")) snprintf(uri, sizeof(uri), "psgm:play?titleid=DEDALOX64&param=%s", g->a1);
+    else if (!strcmp(g->kind, "ext")) {               /* a standalone emulator: title ID, then the ROM */
+        char ap[48];
+        SceIoStat est;
+        snprintf(ap, sizeof(ap), "ux0:app/%.9s/eboot.bin", g->a1);
+        if (sceIoGetstat(ap, &est) < 0) { ui_message(g->title, "The emulator for this game is not installed any more. Install it from the Store, then try again."); return PLAY_CANCELLED; }
+        snprintf(uri, sizeof(uri), "psgm:play?titleid=%.9s&param=%s", g->a1, g->a2);
+    }
     else if (!strcmp(g->kind, "scumm")) snprintf(uri, sizeof(uri), "psgm:play?titleid=VSCU00001&path=%s&game_id=%s", g->a1, g->a2);
     else if (!strcmp(g->kind, "psp")) {
         /* RetroFlow's launcher boots this very game; without it, Adrenaline
