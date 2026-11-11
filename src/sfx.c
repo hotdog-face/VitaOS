@@ -132,11 +132,18 @@ static int make_bed(SceSize args, void *argp) {
 
 static int mixer(SceSize args, void *argp) {
     (void)args; (void)argp;
-    static short out[GRAIN];
+    /* Two buffers, used in turn: sceAudioOutOutput returns once the previous
+     * buffer is playing, and the hardware still reads the one just passed.
+     * Refilling a single buffer wrote over sound that had not been played yet,
+     * which on a continuous sound (Home music) is crackle and static (issue 24). */
+    static short bufs[2][GRAIN];
+    int flip = 0;
     for (;;) {
         int busy = 0;
+        short *out = bufs[flip];
+        flip ^= 1;
         sceKernelWaitSema(lock, 1, NULL);
-        memset(out, 0, sizeof(out));
+        memset(out, 0, GRAIN * sizeof(short));
         int gain = level * 26;                                  /* 0..260, /256 below */
         float bed_to = bed_want && bed_ready ? ambient_level / 10.0f : 0;
         if (bed_ready && (bed_to > 0 || bed_gain > 0)) {

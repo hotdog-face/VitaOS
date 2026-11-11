@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include "video.h"
 #include "ui.h"
+#include "mp4fix.h"
 
 #define CDRAM_ALIGN 0x40000u
 #define ALIGN_UP(x, a) (((x) + ((a) - 1u)) & ~((a) - 1u))
@@ -257,6 +258,14 @@ static int opener(SceSize args, void *argp) {
         sceKernelSignalSema(open_lock, 1);
         if (!want) continue;
         wait_closed();                               /* one decoder at a time */
+        /* Songs and films copied over by hand often have their index at the
+         * end, or cover art as a second track: SceAvPlayer refuses those.
+         * Rearrange the file once, losslessly (mp4fix.c), then play it. */
+        if ((who == OWN_MUSIC || who == OWN_MOVIE) && mp4fix_check(path, who == OWN_MUSIC) > 0) {
+            ui_toast(who == OWN_MUSIC ? "Getting this song ready to play\xE2\x80\xA6" : "Getting this film ready to play\xE2\x80\xA6", C_ACCENT);
+            int fx = mp4fix_fix(path, who == OWN_MUSIC);
+            alog("mp4fix %d (owner %d) %d\n", fx, who, 0);
+        }
         SceAvPlayerHandle h = 0;
         int ok = video_init() >= 0;
         if (ok) {
@@ -290,7 +299,12 @@ static int opener(SceSize args, void *argp) {
         if (current) opening = 0;
         sceKernelSignalSema(open_lock, 1);
         if (current && !ok) {
-            if (who == OWN_MOVIE || who == OWN_MUSIC) ui_toast("That file would not play", C_BAD);
+            char codec[5];
+            if ((who == OWN_MOVIE || who == OWN_MUSIC) && mp4fix_sound_codec(path, codec) == 0 && strcmp(codec, "mp4a"))
+                ui_toast(!strcmp(codec, "alac") ? "Apple Lossless (ALAC) can't play on the Vita: convert it to AAC"
+                                                : "This file's sound format can't play on the Vita: convert it to AAC", C_BAD);
+            else if (who == OWN_MUSIC) ui_toast("That song would not play: it needs to be an AAC .m4a", C_BAD);
+            else if (who == OWN_MOVIE) ui_toast("That film would not play: it needs to be an H.264 .mp4 up to 960x544", C_BAD);
         }
         if (h && !(current && ok)) {
             closing = 1;                             /* its frames were never drawn: no GPU wait */
@@ -309,7 +323,7 @@ static int threads_up(void) {
     closed_sema = sceKernelCreateSema("av_closed", 0, 0, 1, NULL);
     close_sema = sceKernelCreateSema("av_close", 0, 0, 16, NULL);
     SceUID c = sceKernelCreateThread("av_closer", closer, 0x10000100, 0x4000, 0, 0, NULL);
-    SceUID o = sceKernelCreateThread("av_opener", opener, 0x10000100, 0x4000, 0, 0, NULL);
+    SceUID o = sceKernelCreateThread("av_opener", opener, 0x10000100, 0x8000, 0, 0, NULL);
     if (c < 0 || o < 0 || sceKernelStartThread(c, 0, NULL) < 0 || sceKernelStartThread(o, 0, NULL) < 0) return -1;
     return 0;
 }

@@ -323,7 +323,7 @@ static void start(int i) {
     if (i < 0 || i >= ntracks) { state = 0; return; }
     char path[320];
     snprintf(path, sizeof(path), LIB "%s", tracks[i].path);
-    if (video_play_opts(path, 1, 0, 0, OWN_MUSIC) < 0) { state = 0; ui_toast("This song would not play", C_BAD); return; }
+    if (video_play_opts(path, 1, 0, 0, OWN_MUSIC) < 0) { state = 0; ui_toast("That song would not play: it needs to be an AAC .m4a", C_BAD); return; }
     playing = i;
     state = 1;
     note_recent(i);
