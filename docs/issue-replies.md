@@ -71,8 +71,10 @@ For #19, which also mentions box art and dead buttons, add:
 > saw this. 1.9.0 includes it, and the build now refuses to publish without it.
 >
 > 1.9.0 also fixes the two usual problems with hand-copied m4a files (the
-> index at the end of the file, and cover art stored as a video track) the
-> first time you play them, without re-encoding. AAC m4a at 44.1 kHz /
+> index at the end of the file, and cover art stored as a picture track) the
+> first time you play them, without re-encoding. Nothing is lost: chapters
+> and text tracks (audiobooks) are kept, and if a cover-picture track has to
+> be left out, the untouched original stays beside the song as `.orig`. AAC m4a at 44.1 kHz /
 > 192 kbps like yours is exactly what it plays. Apple Lossless (ALAC) files
 > need converting to AAC first; VitaOS now says so.
 
