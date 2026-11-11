@@ -72,7 +72,8 @@ static void load_queue(void) {
     sceIoClose(fd);
     if (n <= 0) return;
     buf[n] = 0;
-    for (char *line = strtok(buf, "\r\n"); line; line = strtok(NULL, "\r\n")) {
+    char *tok1 = NULL;
+    for (char *line = strtok_r(buf, "\r\n", &tok1); line; line = strtok_r(NULL, "\r\n", &tok1)) {
         while (*line == ' ') ++line;
         if (strncmp(line, "http://", 7) && strncmp(line, "https://", 8)) continue;
         char *tab = strchr(line, '\t');

@@ -711,7 +711,8 @@ static int worker(SceSize args, void *argp) {
             char list[512];
             snprintf(list, sizeof(list), "%s", a->screenshots);
             int k = 0;
-            for (char *s = strtok(list, ";"); s && k < 3; s = strtok(NULL, ";"), ++k) {
+            char *tok6 = NULL;
+            for (char *s = strtok_r(list, ";", &tok6); s && k < 3; s = strtok_r(NULL, ";", &tok6), ++k) {
                 const char *base = strrchr(s, '/') ? strrchr(s, '/') + 1 : s;
                 char url[300], dest[256];
                 SceIoStat st;

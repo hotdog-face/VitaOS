@@ -701,16 +701,29 @@ static int store_says_game(const char *store, const char *tid) {
 #define PLAY_LIST "ux0:data/arcadehub/user/play-apps.txt"
 #define APPS_LIST "ux0:data/arcadehub/user/apps-only.txt"
 
-static int listed_in(const char *file, const char *tid) {
-    char buf[4096];
+/* The whole list file, however long (10 bytes a line; the cap is far above
+ * any real card). NULL if there is none. */
+static char *list_read(const char *file) {
     SceUID fd = sceIoOpen(file, SCE_O_RDONLY, 0);
-    if (fd < 0) return 0;
-    int n = sceIoRead(fd, buf, sizeof(buf) - 1);
+    if (fd < 0) return NULL;
+    int size = (int)sceIoLseek(fd, 0, SCE_SEEK_END);
+    sceIoLseek(fd, 0, SCE_SEEK_SET);
+    char *buf = size >= 0 && size < 1024 * 1024 ? malloc(size + 1) : NULL;
+    int n = buf ? sceIoRead(fd, buf, size) : -1;
     sceIoClose(fd);
-    buf[n > 0 ? n : 0] = 0;
-    for (char *line = strtok(buf, "\r\n"); line; line = strtok(NULL, "\r\n"))
-        if (!strncmp(line, tid, 9)) return 1;
-    return 0;
+    if (n < 0) { free(buf); return NULL; }
+    buf[n] = 0;
+    return buf;
+}
+
+static int listed_in(const char *file, const char *tid) {
+    char *buf = list_read(file), *save = NULL;
+    if (!buf) return 0;
+    int hit = 0;
+    for (char *line = strtok_r(buf, "\r\n", &save); line && !hit; line = strtok_r(NULL, "\r\n", &save))
+        hit = !strncmp(line, tid, 9);
+    free(buf);
+    return hit;
 }
 
 volatile int library_rescan_wanted;
@@ -721,24 +734,35 @@ int library_user_choice(const char *tid) {
     return 0;
 }
 
-static void list_set(const char *file, const char *tid, int on) {
-    char buf[4096], out[4096];
-    SceUID fd = sceIoOpen(file, SCE_O_RDONLY, 0);
-    int n = fd >= 0 ? sceIoRead(fd, buf, sizeof(buf) - 1) : 0;
-    if (fd >= 0) sceIoClose(fd);
-    buf[n > 0 ? n : 0] = 0;
+/* Rewrites the list with tid added or taken out. Every other entry is kept:
+ * the output is sized from the input, so nothing is dropped for space, and
+ * the old file stays until the new one is written in full. */
+static int list_set(const char *file, const char *tid, int on) {
+    char *buf = list_read(file), *save = NULL;
+    size_t cap = (buf ? strlen(buf) : 0) + 16;
+    char *out = malloc(cap);
+    if (!out) { free(buf); return -1; }
     int o = 0;
-    for (char *line = strtok(buf, "\r\n"); line; line = strtok(NULL, "\r\n"))
-        if (strncmp(line, tid, 9) && o < (int)sizeof(out) - 12) o += snprintf(out + o, sizeof(out) - o, "%.9s\n", line);
-    if (on && o < (int)sizeof(out) - 12) o += snprintf(out + o, sizeof(out) - o, "%.9s\n", tid);
+    if (buf)
+        for (char *line = strtok_r(buf, "\r\n", &save); line; line = strtok_r(NULL, "\r\n", &save))
+            if (strncmp(line, tid, 9)) o += snprintf(out + o, cap - o, "%.9s\n", line);
+    if (on) o += snprintf(out + o, cap - o, "%.9s\n", tid);
+    free(buf);
     sceIoMkdir("ux0:data/arcadehub/user", 0777);
-    fd = sceIoOpen(file, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
-    if (fd >= 0) { sceIoWrite(fd, out, o); sceIoClose(fd); }
+    char part[96];
+    snprintf(part, sizeof(part), "%s.part", file);
+    SceUID fd = sceIoOpen(part, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
+    int ok = fd >= 0 && sceIoWrite(fd, out, o) == o;
+    if (fd >= 0) sceIoClose(fd);
+    free(out);
+    if (!ok) { sceIoRemove(part); return -1; }
+    sceIoRemove(file);
+    return sceIoRename(part, file);
 }
 
-void library_set_user_choice(const char *tid, int where) {
-    list_set(PLAY_LIST, tid, where > 0);
-    list_set(APPS_LIST, tid, where < 0);
+int library_set_user_choice(const char *tid, int where) {
+    int a = list_set(PLAY_LIST, tid, where > 0), b = list_set(APPS_LIST, tid, where < 0);
+    return a < 0 || b < 0 ? -1 : 0;
 }
 
 /* An Adrenaline bubble (Adrenaline Bubble Manager, AdrBubbleBooter, RetroFlow's

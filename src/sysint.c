@@ -89,7 +89,30 @@ static int is_our_line(const char *s, int n) {
     return 0;
 }
 
+/* The section a line opens ("*main" -> "main"), or NULL if it is not a section line. */
+static int section_of(const char *p, int n, char *out, int max) {
+    while (n && (*p == ' ' || *p == '\t')) { ++p; --n; }
+    while (n && (p[n - 1] == ' ' || p[n - 1] == '\t' || p[n - 1] == '\r')) --n;
+    if (!n || *p != '*') return 0;
+    snprintf(out, max, "%.*s", n - 1, p + 1);
+    return 1;
+}
+
+/* Our line, under a *main section (the only place a shell plugin starts). */
 static int listed(const char *cfg) {
+    char sect[32] = "";
+    for (const char *p = cfg; *p;) {
+        const char *e = strchr(p, '\n');
+        int n = e ? (int)(e - p) : (int)strlen(p);
+        if (!section_of(p, n, sect, sizeof(sect)) && !strcmp(sect, "main") && is_our_line(p, n)) return 1;
+        p += n + (e ? 1 : 0);
+    }
+    return 0;
+}
+
+/* Our line anywhere at all (for Remove: a line someone put under another
+ * section is still ours to take out). */
+static int anywhere(const char *cfg) {
     for (const char *p = cfg; *p;) {
         const char *e = strchr(p, '\n');
         int n = e ? (int)(e - p) : (int)strlen(p);
@@ -97,6 +120,24 @@ static int listed(const char *cfg) {
         p += n + (e ? 1 : 0);
     }
     return 0;
+}
+
+/* A config this code can edit safely: plain 8-bit text, no NUL bytes (strlen
+ * would stop there and the rest, *main included, would be lost) and no
+ * UTF-16 (taiHEN reads bytes; a UTF-16 file would be rewritten as garbage). */
+static int config_ok(const char *cfg, int len, const char *path, char *err, int max) {
+    const unsigned char *u = (const unsigned char *)cfg;
+    if (len >= 2 && ((u[0] == 0xFF && u[1] == 0xFE) || (u[0] == 0xFE && u[1] == 0xFF))) {
+        snprintf(err, max, "%s is saved as UTF-16, which VitaOS will not edit. Nothing was changed: "
+                           "save it as plain text in VitaShell, or add the plugin line by hand.", path);
+        return 0;
+    }
+    if (memchr(cfg, 0, len)) {
+        snprintf(err, max, "%s contains a stray zero byte, so VitaOS will not edit it (part of it could be lost). "
+                           "Nothing was changed: add the plugin line by hand.", path);
+        return 0;
+    }
+    return 1;
 }
 
 /* The new config: ours under *main (added after the first "*main" line, or
@@ -138,14 +179,24 @@ static char *edit_config(const char *cfg, int add) {
     return out;
 }
 
-/* Replace the config with `text`, keeping a backup and checking the result. */
+/* Replace the config with `text`. At no moment is there no config: the old
+ * one is renamed aside (.vitaos-old) and the new one, already written and
+ * read back (.vitaos-new), takes its name; only then is the old one deleted.
+ * sysint_recover() finishes or undoes an interrupted swap at the next start.
+ * The very first original is kept as .before-vitaos and never overwritten. */
 static int swap_config(const char *cfg_path, const char *old, int old_len, const char *text, char *err, int max) {
-    char bak[64], tmp[64];
+    char bak[64], tmp[64], prev[64];
     snprintf(bak, sizeof(bak), "%s.before-vitaos", cfg_path);
     snprintf(tmp, sizeof(tmp), "%s.vitaos-new", cfg_path);
+    snprintf(prev, sizeof(prev), "%s.vitaos-old", cfg_path);
     int len = strlen(text);
-    if (write_all(bak, old, old_len) < 0 || !same_file(bak, old, old_len)) {
+    if (!exists(bak) && (write_all(bak, old, old_len) < 0 || !same_file(bak, old, old_len))) {
+        sceIoRemove(bak);
         snprintf(err, max, "Could not keep a backup of %s, so nothing was changed.", cfg_path);
+        return -1;
+    }
+    if (exists(prev) && sceIoRemove(prev) < 0) {             /* a finished swap's leftover */
+        snprintf(err, max, "Could not clear %s, so nothing was changed.", prev);
         return -1;
     }
     if (write_all(tmp, text, len) < 0 || !same_file(tmp, text, len)) {
@@ -153,19 +204,42 @@ static int swap_config(const char *cfg_path, const char *old, int old_len, const
         snprintf(err, max, "Could not write the new %s, so nothing was changed.", cfg_path);
         return -1;
     }
-    sceIoRemove(cfg_path);
-    if (sceIoRename(tmp, cfg_path) < 0) {
-        write_all(cfg_path, old, old_len);              /* put the old one straight back */
+    if (sceIoRename(cfg_path, prev) < 0) {
         sceIoRemove(tmp);
-        snprintf(err, max, "Could not replace %s; the old one is back.", cfg_path);
+        snprintf(err, max, "Could not set %s aside, so nothing was changed.", cfg_path);
         return -1;
     }
-    if (!same_file(cfg_path, text, len)) {
-        write_all(cfg_path, old, old_len);
-        snprintf(err, max, "%s did not read back as written; the old one is back.", cfg_path);
+    if (sceIoRename(tmp, cfg_path) < 0 || !same_file(cfg_path, text, len)) {
+        sceIoRemove(cfg_path);
+        if (sceIoRename(prev, cfg_path) < 0) {
+            snprintf(err, max, "Could not put %s back. Your config is safe in %s: rename it to config.txt in "
+                               "VitaShell before restarting.", cfg_path, prev);
+            return -1;
+        }
+        sceIoRemove(tmp);
+        snprintf(err, max, "Could not replace %s; the old one is back in place.", cfg_path);
         return -1;
     }
+    sceIoRemove(prev);                                        /* best effort: recover() tidies it otherwise */
     return 0;
+}
+
+/* At start: finish or undo a swap a crash or power loss interrupted. Only
+ * ever acts when config.txt itself is missing. */
+void sysint_recover(void) {
+    static const char *const dirs[] = {"ux0:tai", "ur0:tai"};
+    for (int i = 0; i < 2; ++i) {
+        char cfg[48], prev[64], tmp[64];
+        snprintf(cfg, sizeof(cfg), "%s/config.txt", dirs[i]);
+        snprintf(prev, sizeof(prev), "%s.vitaos-old", cfg);
+        snprintf(tmp, sizeof(tmp), "%s.vitaos-new", cfg);
+        if (exists(cfg)) {
+            if (exists(tmp)) sceIoRemove(tmp);                /* never got used */
+            continue;
+        }
+        if (exists(prev)) sceIoRename(prev, cfg);             /* the config as it was before the change */
+        else if (exists(tmp)) sceIoRename(tmp, cfg);
+    }
 }
 
 static int copy_plugin(char *err, int max) {
@@ -194,8 +268,11 @@ int sysint_state(SysintState *s) {
     s->bundled = exists(BUNDLED);
     s->file = exists(INSTALLED);
     if (s->config) {
-        char *cfg = slurp(s->config, NULL);
-        s->listed = cfg && listed(cfg);
+        int len = 0;
+        char err[8];
+        char *cfg = slurp(s->config, &len);
+        s->odd = cfg && !config_ok(cfg, len, s->config, err, sizeof(err));
+        s->listed = cfg && !s->odd && listed(cfg);
         free(cfg);
     }
     if (s->file && s->bundled) {
@@ -219,6 +296,7 @@ int sysint_install(char *err, int max) {
     int len = 0;
     char *cfg = slurp(cfg_path, &len);
     if (!cfg || len > MAX_CFG) { free(cfg); snprintf(err, max, "Could not read %s.", cfg_path); return -1; }
+    if (!config_ok(cfg, len, cfg_path, err, max)) { free(cfg); return -1; }
     if (listed(cfg)) { free(cfg); return 0; }            /* already there: only the file was refreshed */
     char *text = edit_config(cfg, 1);
     int rc = text ? swap_config(cfg_path, cfg, len, text, err, max) : -1;
@@ -235,7 +313,8 @@ int sysint_remove(char *err, int max) {
     int len = 0;
     char *cfg = slurp(cfg_path, &len);
     if (!cfg) { snprintf(err, max, "Could not read %s.", cfg_path); return -1; }
-    if (!listed(cfg)) { free(cfg); return 0; }
+    if (!config_ok(cfg, len, cfg_path, err, max)) { free(cfg); return -1; }
+    if (!anywhere(cfg)) { free(cfg); return 0; }
     char *text = edit_config(cfg, 0);
     int rc = text ? swap_config(cfg_path, cfg, len, text, err, max) : -1;
     free(text);
@@ -246,5 +325,6 @@ int sysint_remove(char *err, int max) {
 #ifdef SYSINT_TEST
 /* tools/test_sysint.sh: the config editing, on a computer. */
 char *sysint_test_edit(const char *cfg, int add) { return edit_config(cfg, add); }
+int sysint_test_ok(const char *cfg, int len) { char e[200]; return config_ok(cfg, len, "config.txt", e, sizeof(e)); }
 int sysint_test_listed(const char *cfg) { return listed(cfg); }
 #endif

@@ -76,20 +76,28 @@ typedef struct { char thread[32], why[24]; unsigned int pc, lr; int in_app; } Fa
 
 static unsigned int rd32(const unsigned char *p) { return p[0] | p[1] << 8 | p[2] << 16 | (unsigned int)p[3] << 24; }
 
+/* Bounds are checked by subtraction (x <= len - y, with y known <= len), so a
+ * huge offset or size in a damaged dump cannot wrap around and pass. */
 static const unsigned char *note(const unsigned char *d, int len, const char *want, unsigned int *size) {
     if (len < 0x34 || memcmp(d, "\x7f" "ELF", 4)) return NULL;
+    unsigned int n = (unsigned int)len;
     unsigned int phoff = rd32(d + 0x1c), phent = d[0x2a] | d[0x2b] << 8, phnum = d[0x2c] | d[0x2d] << 8;
-    for (unsigned int i = 0; i < phnum && phoff + (i + 1) * phent <= (unsigned int)len; ++i) {
+    if (phent < 20 || phoff > n) return NULL;
+    for (unsigned int i = 0; i < phnum; ++i) {
+        if ((n - phoff) / phent <= i) break;                          /* entry i ends past the data */
         const unsigned char *ph = d + phoff + i * phent;
         if (rd32(ph) != 4) continue;                                  /* PT_NOTE */
         unsigned int off = rd32(ph + 4), fs = rd32(ph + 16);
-        if (off + 12 > (unsigned int)len) continue;
+        if (off > n || n - off < 12) continue;
         unsigned int nsz = rd32(d + off), dsz = rd32(d + off + 4);
-        unsigned int desc = off + 12 + ((nsz + 3) & ~3u);
-        if (nsz > 32 || desc + dsz > (unsigned int)len || desc + dsz > off + fs + 12) continue;
+        if (nsz > 32) continue;
+        unsigned int head = 12 + ((nsz + 3) & ~3u);                   /* at most 44 */
+        if (n - off < head) continue;
+        unsigned int room = n - off - head;                           /* bytes after the name */
+        if (dsz > room || fs < head || dsz > fs - head + 12) continue;
         if (strncmp((const char *)d + off + 12, want, nsz)) continue;
         *size = dsz;
-        return d + desc;
+        return d + off + head;
     }
     return NULL;
 }
@@ -109,9 +117,9 @@ static int read_fault(const char *path, Fault *f) {
     unsigned int uid = 0, stop = 0;
     if (th && tsz >= 8) {
         unsigned int n = rd32(th + 4), off = 8;
-        for (unsigned int i = 0; i < n && off + 0xa0 <= tsz; ++i) {
+        for (unsigned int i = 0; i < n && off <= tsz && tsz - off >= 0xa0; ++i) {
             unsigned int sz = rd32(th + off);
-            if (sz < 0xa0 || off + sz > tsz) break;
+            if (sz < 0xa0 || sz > tsz - off) break;
             if (rd32(th + off + 0x74)) {
                 uid = rd32(th + off + 4);
                 stop = rd32(th + off + 0x74);
@@ -124,9 +132,9 @@ static int read_fault(const char *path, Fault *f) {
     }
     if (uid && rg && rsz >= 8) {
         unsigned int n = rd32(rg + 4), off = 8;
-        for (unsigned int i = 0; i < n && off + 8 + 64 <= rsz; ++i) {
+        for (unsigned int i = 0; i < n && off <= rsz && rsz - off >= 72; ++i) {
             unsigned int sz = rd32(rg + off);
-            if (sz < 72 || off + sz > rsz) break;
+            if (sz < 72 || sz > rsz - off) break;
             if (rd32(rg + off + 4) == uid) { f->lr = rd32(rg + off + 8 + 14 * 4); break; }
             off += sz;
         }
@@ -134,10 +142,10 @@ static int read_fault(const char *path, Fault *f) {
     /* Offsets into VitaOS's own code segment, when the address is in it. */
     if (md && msz >= 8) {
         unsigned int n = rd32(md + 4), off = 8;
-        for (unsigned int i = 0; i < n && off + 0x50 <= msz; ++i) {
+        for (unsigned int i = 0; i < n && off <= msz && msz - off >= 0x50; ++i) {
             unsigned int segs = rd32(md + off + 0x4c);
             const char *name = (const char *)md + off + 0x24;
-            if (segs > 4 || off + 0x50 + segs * 0x14 + 0x10 > msz) break;
+            if (segs > 4 || msz - off < 0x50 + segs * 0x14 + 0x10) break;
             if (!strncmp(name, "vitaos", 6) && segs) {
                 unsigned int start = rd32(md + off + 0x50 + 8), size = rd32(md + off + 0x50 + 12);
                 if (f->pc >= start && f->pc < start + size) { f->pc -= start; f->in_app |= 1; }

@@ -121,7 +121,8 @@ static void load_catalog(void) {
     char *text = slurp(ROOT "systems.tsv", NULL);
     if (!text) return;
     nsys = VIRT;
-    for (char *line = strtok(text, "\r\n"); line && nsys < MAX_SYS; line = strtok(NULL, "\r\n")) {
+    char *tok_save = NULL;
+    for (char *line = strtok_r(text, "\r\n", &tok_save); line && nsys < MAX_SYS; line = strtok_r(NULL, "\r\n", &tok_save)) {
         char *f[4];
         if (split(line, f, 4) < 3) continue;
         System *s = &systems[nsys];
@@ -555,7 +556,8 @@ static void seen_load(void) {
     char *buf = slurp(SEEN_FILE, &len);
     if (!buf) return;
     seen_had_file = 1;
-    for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n")) {
+    char *tok_save = NULL;
+    for (char *line = strtok_r(buf, "\n", &tok_save); line; line = strtok_r(NULL, "\n", &tok_save)) {
         char *t1 = strchr(line, '\t'), *t2 = t1 ? strchr(t1 + 1, '\t') : NULL;
         if (!t2) continue;
         *t1 = *t2 = 0;

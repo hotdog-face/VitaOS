@@ -107,10 +107,11 @@ static void refresh(void) {
 
 /* All of this touches the card, the network stack or the registry, any of
  * which can block here for a second or more: never on the main thread. */
+static void plugin_poll(void);
 static int refresher(SceSize args, void *argp) {
     (void)args; (void)argp;
     for (;;) {
-        if (sceKernelGetProcessTimeWide() < wanted_until) refresh();
+        if (sceKernelGetProcessTimeWide() < wanted_until) { refresh(); plugin_poll(); }
         sceKernelDelayThread(2000 * 1000);
     }
     return 0;
@@ -341,16 +342,26 @@ static void flag_write(const char *path, int on) {
     } else sceIoRemove(path);
 }
 
-static SceUInt64 now_us(void) { return sceKernelGetProcessTimeWide(); }
-static int plugin_dirty;
+/* The plugin's state, read off the UI thread: once when Settings first opens
+ * and again after a change here (plugin_dirty). The strings it points at are
+ * constants, so a plain struct copy is safe to read from the UI. */
+static SysintState plugin_state;
+static volatile int plugin_on, plugin_dirty = 1;
+static void plugin_poll(void) {                       /* refresher thread */
+    if (!plugin_dirty) return;
+    plugin_dirty = 0;
+    SysintState st;
+    int on = sysint_state(&st);
+    plugin_state = st;
+    plugin_on = on;
+}
 
 /* Settings > VitaOS > Start at power-on: set up, update or remove the plugin
  * (sysint.c does the file work, with a backup and checks). */
-static void plugin_action(void) {
+static void plugin_action_do(void) {
     SysintState ps;
     int on = sysint_state(&ps);
-    char err[200] = "", msg[400];
-    plugin_dirty = 1;
+    char err[300] = "", msg[400];
     if (!on) {
         if (!ps.config) {
             ui_message("Start at power-on", "This Vita has no tai/config.txt, so plugins are not set up here. "
@@ -386,6 +397,11 @@ static void plugin_action(void) {
                                    "It is in %s (ur0:tai/vitaos_ps.suprx). Hold L at power-on to skip all plugins once.", ps.config);
         ui_message("VitaOS plugin", msg);
     }
+}
+
+static void plugin_action(void) {
+    plugin_action_do();
+    plugin_dirty = 1;                                 /* read the state again, after whatever was done */
 }
 
 static void build_rows(void) {
@@ -487,14 +503,13 @@ static void build_rows(void) {
             r->color = st == 9 ? C_BAD : C_ACCENT;
         }
         {
-            /* the plugin's state, read from the card at most every 2 s */
-            static SysintState ps;
-            static SceUInt64 ps_at;
-            static int ps_on;
-            if (!ps_at || now_us() - ps_at > 2000000 || plugin_dirty) { ps_on = sysint_state(&ps); ps_at = now_us(); plugin_dirty = 0; }
+            /* The plugin's state comes from the refresher thread (plugin_poll):
+             * never read from the card here, on the UI thread. */
+            SysintState ps = plugin_state;
+            int ps_on = plugin_on;
             if (!ps_on) {
                 r = add(R_ACTION, A_PLUGIN, "Start at power-on");
-                snprintf(r->value, sizeof(r->value), "%s", ps.config ? "Set up" : "Needs taiHEN");
+                snprintf(r->value, sizeof(r->value), "%s", !ps.config ? "Needs taiHEN" : ps.odd ? "Set up by hand" : "Set up");
                 r->sub = "VitaOS opens when the Vita starts, and comes back after games";
                 r->color = C_ACCENT;
             } else {

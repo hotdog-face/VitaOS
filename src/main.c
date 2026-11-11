@@ -26,6 +26,7 @@
 
 #include "ssl_locks.h"
 #include "threads.h"
+#include "sysint.h"
 #include "ui.h"
 #include "play.h"
 #include "apps.h"
@@ -124,7 +125,8 @@ static int ps_forwarder(void) {
         int n = sceIoRead(fd, buf, sizeof(buf) - 1);
         sceIoClose(fd);
         buf[n > 0 ? n : 0] = 0;
-        for (char *line = strtok(buf, "\r\n"); line && !known; line = strtok(NULL, "\r\n")) {
+        char *tok2 = NULL;
+        for (char *line = strtok_r(buf, "\r\n", &tok2); line && !known; line = strtok_r(NULL, "\r\n", &tok2)) {
             while (*line == ' ' || *line == '\t') ++line;
             if (*line != '#' && strstr(line, "vitaos_ps.suprx")) known = 1;
         }
@@ -468,12 +470,16 @@ static void library_rescan_now(void) {                /* Settings > VitaOS > Fin
 /* The same, without the toasts or the Mac-catalog message: for a Mac-built
  * catalog the top-up adds the game on its next run. */
 static int topup_thread(SceSize args, void *argp);
+static volatile int topup_busy;                       /* one lib_topup at a time: two would append the same rows */
+static void topup_start(void) {
+    if (topup_busy) return;
+    topup_busy = 1;
+    SceUID tt = sceKernelCreateThread("lib_topup", topup_thread, 0x10000110, NET_STACK, 0, 0, NULL);
+    if (tt < 0 || sceKernelStartThread(tt, 0, NULL) < 0) topup_busy = 0;
+}
+
 static void library_rescan_quiet(void) {
-    if (library_is_ours() == 0) {
-        SceUID tt = sceKernelCreateThread("lib_topup", topup_thread, 0x10000110, NET_STACK, 0, 0, NULL);
-        if (tt >= 0) sceKernelStartThread(tt, 0, NULL);
-        return;
-    }
+    if (library_is_ours() == 0) { topup_start(); return; }
     if (lib_done < 0 && lib_before >= 0) return;
     lib_before = -2;                                 /* reload whatever the count */
     lib_found = 0;
@@ -542,6 +548,7 @@ static int topup_thread(SceSize args, void *argp) {
         if (sceNetCtlInetGetState(&st) >= 0 && st == SCE_NETCTL_STATE_CONNECTED) { wiki_added = library_wiki_art(); break; }
         sceKernelDelayThread(1000 * 1000);
     }
+    topup_busy = 0;
     return sceKernelExitDeleteThread(0);
 }
 
@@ -636,6 +643,7 @@ int main(void) {
         sceAppUtilInit(&ip, &bp);
     }
     ui_init();
+    sysint_recover();                            /* a config swap that power loss interrupted (sysint.c) */
     crash_init();                                /* the last run's stage, before this run writes its own */
     sfx_init();
     /* The splash and chime are for a cold boot only: Home also restarts every
@@ -682,10 +690,7 @@ int main(void) {
      * a call into SceNetCtl while the module was still loading jumped to
      * address 0 (issue 12, dump 1: thread lib_topup, PC 0). */
     int net = net_up();
-    {
-        SceUID tt = sceKernelCreateThread("lib_topup", topup_thread, 0x10000110, NET_STACK, 0, 0, NULL);
-        if (tt >= 0) sceKernelStartThread(tt, 0, NULL);
-    }
+    topup_start();
     files_init();
     if (net >= 0) downloads_init();
     if (net >= 0) weather_init();

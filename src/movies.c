@@ -64,7 +64,8 @@ static void load_resume(void) {
     sceIoClose(fd);
     if (n <= 0) return;
     buf[n] = 0;
-    for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n")) {
+    char *tok3 = NULL;
+    for (char *line = strtok_r(buf, "\n", &tok3); line; line = strtok_r(NULL, "\n", &tok3)) {
         char *tab = strchr(line, '\t');
         if (!tab) continue;
         *tab = 0;

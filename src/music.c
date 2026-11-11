@@ -136,12 +136,14 @@ static void load(void) {
     if (nl) *nl = 0;
     if (buf[0]) last_played = track_by_path(buf);
     read_small(LIKED, buf, sizeof(buf));
-    for (char *l = strtok(buf, "\n"); l; l = strtok(NULL, "\n")) {
+    char *tok4 = NULL;
+    for (char *l = strtok_r(buf, "\n", &tok4); l; l = strtok_r(NULL, "\n", &tok4)) {
         int i = track_by_path(l);
         if (i >= 0 && !liked[i]) { liked[i] = 1; liked_list[nliked++] = i; }
     }
     read_small(RECENT, buf, sizeof(buf));
-    for (char *l = strtok(buf, "\n"); l && nrecent < MAX_RECENT; l = strtok(NULL, "\n")) {
+    char *tok5 = NULL;
+    for (char *l = strtok_r(buf, "\n", &tok5); l && nrecent < MAX_RECENT; l = strtok_r(NULL, "\n", &tok5)) {
         int i = track_by_path(l);
         if (i >= 0) recent[nrecent++] = i;
     }

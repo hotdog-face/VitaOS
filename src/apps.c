@@ -89,7 +89,8 @@ static void apply_order(void) {                       /* scan thread */
     int m = 0, fresh = 0;
     for (int i = 0; i < napps; ++i)                   /* new ones first (still A to Z among themselves) */
         if (!strstr(buf, apps[i].tid)) { sorted[m++] = apps[i]; used[i] = 1; fresh = 1; }
-    for (char *line = strtok(buf, "\n"); line; line = strtok(NULL, "\n"))
+    char *tok_save = NULL;
+    for (char *line = strtok_r(buf, "\n", &tok_save); line; line = strtok_r(NULL, "\n", &tok_save))
         for (int i = 0; i < napps; ++i)
             if (!used[i] && !strcmp(apps[i].tid, line)) { sorted[m++] = apps[i]; used[i] = 1; break; }
     memcpy(apps, sorted, m * sizeof(App));
@@ -265,7 +266,7 @@ static void options(int i) {
     int k = ui_menu(a->title, items, 3);
     if (k == 0) info(a);
     if (k == 1) {                                     /* a game that Apps took for an app (issue 9) */
-        library_set_user_choice(a->tid, 1);
+        if (library_set_user_choice(a->tid, 1) < 0) { ui_toast("Could not save that: the card may be full", C_BAD); return; }
         library_rescan_wanted = 1;
         char m[120];
         snprintf(m, sizeof(m), "%.60s moves to Play", a->title);
