@@ -9,6 +9,7 @@
 #include <psp2/io/fcntl.h>
 
 #include "weather.h"
+#include "threads.h"
 
 #define CFG "ux0:data/arcadehub/user/weather.cfg"
 #define URL "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f" \
@@ -76,6 +77,7 @@ static int worker(SceSize args, void *argp) {
         if (c) {
             used = 0; body[0] = 0;
             curl_easy_setopt(c, CURLOPT_URL, url);
+            curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
             curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
             curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.0 (PS Vita)");
             curl_easy_setopt(c, CURLOPT_TIMEOUT, 30L);
@@ -98,7 +100,7 @@ static int worker(SceSize args, void *argp) {
 }
 
 void weather_init(void) {
-    SceUID t = sceKernelCreateThread("weather", worker, 0x10000100, 0x8000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("weather", worker, 0x10000100, NET_STACK, 0, 0, NULL);
     if (t >= 0) sceKernelStartThread(t, 0, NULL);
 }
 
@@ -154,6 +156,7 @@ int weather_search(const char *query, char names[][96], float *lat, float *lon, 
     if (!c) return 0;
     sused = 0; sbody[0] = 0;
     curl_easy_setopt(c, CURLOPT_URL, url);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
     curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
     curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.0 (PS Vita)");
     curl_easy_setopt(c, CURLOPT_TIMEOUT, 20L);

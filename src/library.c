@@ -966,6 +966,7 @@ static int fetch_png(CURL *c, const char *url, const char *dest) {
     dl_file = fopen(tmp, "wb");
     if (!dl_file) return -1;
     curl_easy_setopt(c, CURLOPT_URL, url);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
     long code = 0;
     int ok = curl_easy_perform(c) == CURLE_OK;
     fclose(dl_file);
@@ -1076,6 +1077,7 @@ int library_fetch_art(volatile int *done, volatile int *got) {
             char lurl[300];
             snprintf(lurl, sizeof(lurl), "https://thumbnails.libretro.com/%s/Named_Boxarts/", li ? esys2 : esys);
             curl_easy_setopt(c, CURLOPT_URL, lurl);
+            curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
             curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, lst_write);
             curl_easy_setopt(c, CURLOPT_WRITEDATA, &lst[li]);
             if (curl_easy_perform(c) != CURLE_OK) lst[li].len = 0;

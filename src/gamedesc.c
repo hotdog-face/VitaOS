@@ -15,6 +15,7 @@
 #include <string.h>
 #include <strings.h>
 #include "gamedesc.h"
+#include "threads.h"
 
 #define DIR "ux0:data/arcadehub/desc"
 #define MAX_BODY (64 * 1024)
@@ -69,6 +70,7 @@ static int get(const char *url) {
     if (!c) return -1;
     used = 0; body[0] = 0;
     curl_easy_setopt(c, CURLOPT_URL, url);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
     curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
     curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.5 (PS Vita; github.com/mvizensk/VitaOS)");
     curl_easy_setopt(c, CURLOPT_TIMEOUT, 15L);
@@ -234,6 +236,7 @@ int gamedesc_cover(const char *title, const char *dest_noext, char *out, int max
             CURL *c = fd >= 0 ? curl_easy_init() : NULL;
             if (c) {
                 curl_easy_setopt(c, CURLOPT_URL, img);
+                curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
                 curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
                 curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.7 (PS Vita; github.com/mvizensk/VitaOS)");
                 curl_easy_setopt(c, CURLOPT_TIMEOUT, 20L);
@@ -259,7 +262,7 @@ void gamedesc_request(const char *title) {
     busy = 1;
     ready = 0;
     snprintf(want, sizeof(want), "%s", title);
-    SceUID t = sceKernelCreateThread("game_desc", fetch, 0x10000100, 0x8000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("game_desc", fetch, 0x10000100, NET_STACK, 0, 0, NULL);
     if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) busy = 0;
 }
 

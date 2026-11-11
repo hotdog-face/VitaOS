@@ -49,6 +49,8 @@ typedef struct {
     int origin;  /* index of the real system this game belongs to */
 } Game;
 
+#define NZ(s) ((s) ? (s) : "")   /* a missing field reads as empty, never as NULL */
+
 typedef struct {
     char id[32], name[64];
     unsigned int accent;
@@ -964,6 +966,13 @@ static char playing[256] = {0};
 static int pre_sys, pre_sel, pre_view;
 static int idle = 0, attract = 0, attract_frames = 0, a_sys = 0, a_sel = 0;
 int play_wake(void);
+/* The reel's game is an index into the lists, and the lists are rebuilt under
+ * it (a rescan, new box art, a favourite): check it every frame. Two crash
+ * dumps from 1.8.4 (issue 12) read a stale index into a zeroed slot. */
+static int attract_ok(void) {
+    return a_sys >= VIRT && a_sys < nsys && systems[a_sys].games && a_sel >= 0 && a_sel < systems[a_sys].count &&
+           systems[a_sys].games[a_sel].title;
+}
 /* touch: drag the strip / carousel, tap to pick */
 static int touching = 0, t_x0 = 0, t_y0 = 0, t_moved = 0, tap_play = 0, t_frames = 0, t_x = 0, t_y = 0;
 static float drag_base = 0;
@@ -1026,6 +1035,8 @@ void play_init(void) {
 void play_reload(void) {
     video_stop_owned(OWN_PREVIEW);
     playing[0] = 0;
+    attract = 0; idle = 0; a_sys = a_sel = 0;        /* its indexes point into the old lists */
+    have_shown = 0; has_fade = 0; fade_t = 0;
     memset(systems, 0, sizeof(systems));
     memset(game_sel, 0, sizeof(game_sel));
     nsys = 0;
@@ -1520,6 +1531,7 @@ void play_frame(const Input *in) {
                 if (*systems[s2].games[g2].video) { a_sys = s2; a_sel = g2; break; }
             }
         }
+        if (!attract_ok()) { play_wake(); return; }   /* the lists changed under the reel */
         want = systems[a_sys].games[a_sel].video;
     } else if (view == 1) {
         int key = sys * 100000 + sel;
@@ -1545,9 +1557,9 @@ void play_frame(const Input *in) {
             vita2d_draw_rectangle(0, H - 170 + i * 17, W, 17, RGBA8(0, 0, 0, 20 + i * 18));
         vita2d_texture *lg = tex(ag->logo);
         if (lg) draw_fit(lg, 36, H - 150, 360, 90, WHITE, 0);
-        else uifont_draw(bold, 36, H - 80, WHITE, 30, ag->title);
+        else uifont_draw(bold, 36, H - 80, WHITE, 30, NZ(ag->title));
         char line[160];
-        snprintf(line, sizeof(line), "%s%s%s", systems[a_sys].name, *ag->year ? "  \xC2\xB7  " : "", ag->year);
+        snprintf(line, sizeof(line), "%s%s%s", systems[a_sys].name, *NZ(ag->year) ? "  \xC2\xB7  " : "", NZ(ag->year));
         uifont_draw(font, 36, H - 30, systems[a_sys].accent, 18, line);
         const char *reel_hint = "X play this  any button: browse";
         draw_hints(W - 36 - hints_width(reel_hint), H - 36, reel_hint, DIM, W);
@@ -1633,7 +1645,7 @@ void play_frame(const Input *in) {
         /* The gameplay preview plays big, behind everything (it was fitted
          * into the 300 px cover square, far too small to see: playtest). */
         if (frame) background_a(S->accent, frame, 150);
-        else background(S->accent, tex(g->bg[0] ? g->bg : g->cover));
+        else background(S->accent, tex(*NZ(g->bg) ? g->bg : g->cover));
         char head[96];
         snprintf(head, sizeof(head), "%s   %d / %d%s%s%s", S->name, sel + 1, S->count,
                  is_fav(g) ? "   \xE2\x98\x85" : "", is_new(g) ? "   NEW" : "",
@@ -1663,11 +1675,11 @@ void play_frame(const Input *in) {
         if (logo) { draw_fit(logo, tx, 80, 400, 80, fade_in, 0); ty = 190; }
         else { draw_wrapped(bold, g->title, tx, ty, W - tx - 40, 30, 2, fade_in); ty += 84; }
         char meta[192] = {0};
-        int mo = sys < VIRT ? snprintf(meta, sizeof(meta), "%s%s", systems[g->origin].name, (*g->year || *g->genre) ? "  \xC2\xB7  " : "") : 0;
-        snprintf(meta + mo, sizeof(meta) - mo, "%s%s%s%s%s", g->year, (*g->year && *g->genre) ? "  \xC2\xB7  " : "", g->genre,
-                 *g->players ? "  \xC2\xB7  " : "", *g->players ? g->players : "");
+        int mo = sys < VIRT ? snprintf(meta, sizeof(meta), "%s%s", systems[g->origin].name, (*NZ(g->year) || *NZ(g->genre)) ? "  \xC2\xB7  " : "") : 0;
+        snprintf(meta + mo, sizeof(meta) - mo, "%s%s%s%s%s", NZ(g->year), (*NZ(g->year) && *NZ(g->genre)) ? "  \xC2\xB7  " : "", NZ(g->genre),
+                 *NZ(g->players) ? "  \xC2\xB7  " : "", NZ(g->players));
         if (*meta) { uifont_draw(font, tx, ty, (S->accent & 0x00FFFFFF) | (in_a << 24), 18, meta); ty += 34; }
-        if (*g->desc) draw_wrapped(font, g->desc, tx, ty, W - tx - 40, 17, 7, RGBA8(235, 238, 245, in_a * 220 / 255));
+        if (*NZ(g->desc)) draw_wrapped(font, g->desc, tx, ty, W - tx - 40, 17, 7, RGBA8(235, 238, 245, in_a * 220 / 255));
         /* cover strip */
         for (int i = sel - 5; i <= sel + 5; ++i) {
             if (i < 0 || i >= S->count) continue;
@@ -1772,7 +1784,9 @@ int play_wake(void) {
     video_stop_owned(OWN_PREVIEW);
     playing[0] = 0;
     sys = pre_sys; sel = pre_sel; view = pre_view;
-    if (view && sel < systems[sys].count) game_pos = sel;
+    if (sys < 0 || sys >= nsys) { sys = first_real < last_real ? first_real : 0; view = 0; sel = 0; }
+    if (sel < 0 || sel >= systems[sys].count) { sel = 0; view = 0; }
+    if (view) game_pos = sel;
     return 1;
 }
 const char *play_context(void) { return context; }

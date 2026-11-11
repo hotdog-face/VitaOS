@@ -24,12 +24,12 @@
 
 #define SEEN "ux0:data/arcadehub/user/crash-seen.txt"
 #define OFF "ux0:data/arcadehub/user/crash-report.off"
-#define ISSUES "https://github.com/mvizensk/VitaOS/issues/new"
+#define ISSUES "https://github.com/hotdog-face/VitaOS/issues/new"
 
 typedef struct { char magic[8]; char version[16]; char stage[64]; unsigned int frames; } Stage;
 static Stage last;                       /* what the previous run was doing when it stopped */
 static volatile int found, active;
-static char dump_name[96], url[1400];
+static char dump_name[96], url[2000], fault_line[80];
 static uint8_t qr[qrcodegen_BUFFER_LEN_MAX];
 static int qr_ok;
 
@@ -64,6 +64,92 @@ static int ours(const char *path) {
     }
     gzclose(g);
     return hit;
+}
+
+/* What the dump itself says (2026-11): which thread stopped, why, and where in
+ * VitaOS's code, as offsets that map straight to a line with addr2line on the
+ * same build. The stage above is the main thread's, and most 1.8.4 reports
+ * said "end frame" only because that is where the main thread waits: the
+ * thread that actually crashed was often another one. The notes needed sit in
+ * the first few KB of the unpacked dump. */
+typedef struct { char thread[32], why[24]; unsigned int pc, lr; int in_app; } Fault;
+
+static unsigned int rd32(const unsigned char *p) { return p[0] | p[1] << 8 | p[2] << 16 | (unsigned int)p[3] << 24; }
+
+static const unsigned char *note(const unsigned char *d, int len, const char *want, unsigned int *size) {
+    if (len < 0x34 || memcmp(d, "\x7f" "ELF", 4)) return NULL;
+    unsigned int phoff = rd32(d + 0x1c), phent = d[0x2a] | d[0x2b] << 8, phnum = d[0x2c] | d[0x2d] << 8;
+    for (unsigned int i = 0; i < phnum && phoff + (i + 1) * phent <= (unsigned int)len; ++i) {
+        const unsigned char *ph = d + phoff + i * phent;
+        if (rd32(ph) != 4) continue;                                  /* PT_NOTE */
+        unsigned int off = rd32(ph + 4), fs = rd32(ph + 16);
+        if (off + 12 > (unsigned int)len) continue;
+        unsigned int nsz = rd32(d + off), dsz = rd32(d + off + 4);
+        unsigned int desc = off + 12 + ((nsz + 3) & ~3u);
+        if (nsz > 32 || desc + dsz > (unsigned int)len || desc + dsz > off + fs + 12) continue;
+        if (strncmp((const char *)d + off + 12, want, nsz)) continue;
+        *size = dsz;
+        return d + desc;
+    }
+    return NULL;
+}
+
+static int read_fault(const char *path, Fault *f) {
+    memset(f, 0, sizeof(*f));
+    const int max = 96 * 1024;
+    unsigned char *d = malloc(max);
+    if (!d) return 0;
+    gzFile g = gzopen(path, "rb");
+    int len = g ? gzread(g, d, max) : -1;
+    if (g) gzclose(g);
+    unsigned int tsz = 0, rsz = 0, msz = 0;
+    const unsigned char *th = len > 0 ? note(d, len, "THREAD_INFO", &tsz) : NULL;
+    const unsigned char *rg = len > 0 ? note(d, len, "THREAD_REG_INFO", &rsz) : NULL;
+    const unsigned char *md = len > 0 ? note(d, len, "MODULE_INFO", &msz) : NULL;
+    unsigned int uid = 0, stop = 0;
+    if (th && tsz >= 8) {
+        unsigned int n = rd32(th + 4), off = 8;
+        for (unsigned int i = 0; i < n && off + 0xa0 <= tsz; ++i) {
+            unsigned int sz = rd32(th + off);
+            if (sz < 0xa0 || off + sz > tsz) break;
+            if (rd32(th + off + 0x74)) {
+                uid = rd32(th + off + 4);
+                stop = rd32(th + off + 0x74);
+                f->pc = rd32(th + off + 0x9c);
+                snprintf(f->thread, sizeof(f->thread), "%.31s", (const char *)th + off + 8);
+                break;
+            }
+            off += sz;
+        }
+    }
+    if (uid && rg && rsz >= 8) {
+        unsigned int n = rd32(rg + 4), off = 8;
+        for (unsigned int i = 0; i < n && off + 8 + 64 <= rsz; ++i) {
+            unsigned int sz = rd32(rg + off);
+            if (sz < 72 || off + sz > rsz) break;
+            if (rd32(rg + off + 4) == uid) { f->lr = rd32(rg + off + 8 + 14 * 4); break; }
+            off += sz;
+        }
+    }
+    /* Offsets into VitaOS's own code segment, when the address is in it. */
+    if (md && msz >= 8) {
+        unsigned int n = rd32(md + 4), off = 8;
+        for (unsigned int i = 0; i < n && off + 0x50 <= msz; ++i) {
+            unsigned int segs = rd32(md + off + 0x4c);
+            const char *name = (const char *)md + off + 0x24;
+            if (segs > 4 || off + 0x50 + segs * 0x14 + 0x10 > msz) break;
+            if (!strncmp(name, "vitaos", 6) && segs) {
+                unsigned int start = rd32(md + off + 0x50 + 8), size = rd32(md + off + 0x50 + 12);
+                if (f->pc >= start && f->pc < start + size) { f->pc -= start; f->in_app |= 1; }
+                if (f->lr >= start && f->lr < start + size) { f->lr -= start; f->in_app |= 2; }
+            }
+            off += 0x50 + segs * 0x14 + 0x10;
+        }
+    }
+    snprintf(f->why, sizeof(f->why), "%s", stop == 0x30002 ? "bad instruction" : stop == 0x30003 ? "bad jump" :
+             stop == 0x30004 ? "bad memory read/write" : stop == 0x60080 ? "divide by zero" : stop ? "stopped" : "");
+    free(d);
+    return f->thread[0] != 0;
 }
 
 static void urlenc(const char *in, char *out, int max) {
@@ -111,12 +197,22 @@ static int finder(SceSize args, void *argp) {
     SceIoStat st;
     const char *model = sceIoGetstat("imc0:", &st) >= 0 ? "PCH-2000" : "PCH-1000";
     int known = !memcmp(last.magic, "VOSSTG1", 8);
-    char title[160], body[700], et[400], eb[1000];
-    snprintf(title, sizeof(title), "Crash: VitaOS %s (%s)", known ? last.version : VITAOS_VERSION, known ? last.stage : "unknown");
+    char newest_path[160], where[160] = "", title_where[64];
+    snprintf(newest_path, sizeof(newest_path), "ux0:data/%s", newest);
+    Fault ft;
+    if (read_fault(newest_path, &ft)) {
+        snprintf(where, sizeof(where), "- Crashed thread: %s, %s, pc %s0x%x, lr %s0x%x\n", ft.thread, ft.why,
+                 ft.in_app & 1 ? "vitaos+" : "", ft.pc, ft.in_app & 2 ? "vitaos+" : "", ft.lr);
+        snprintf(title_where, sizeof(title_where), "%s at %s0x%x", ft.thread, ft.in_app & 1 ? "+" : "", ft.pc);
+        snprintf(fault_line, sizeof(fault_line), "Crashed in: %s (%s)", ft.thread, ft.why);
+    } else snprintf(title_where, sizeof(title_where), "%s", known ? last.stage : "unknown");
+    char title[160], body[900], et[400], eb[1400];
+    snprintf(title, sizeof(title), "Crash: VitaOS %s (%s)", known ? last.version : VITAOS_VERSION, title_where);
     snprintf(body, sizeof(body),
-             "VitaOS closed unexpectedly.\n\n- VitaOS: %s\n- Was doing: %s\n- Console: %s, firmware %s\n- Crash file: %s\n\n"
-             "What were you doing just before it closed?\n",
-             known ? last.version : VITAOS_VERSION, known ? last.stage : "unknown", model, fw.versionString, newest);
+             "VitaOS closed unexpectedly.\n\n- VitaOS: %s\n- Screen: %s\n%s- Console: %s, firmware %s\n- Crash file: %s\n\n"
+             "What were you doing just before it closed?\n\n\n"
+             "(If you can, attach the crash file from ux0:data: it helps a lot.)\n",
+             known ? last.version : VITAOS_VERSION, known ? last.stage : "unknown", where, model, fw.versionString, newest);
     urlenc(title, et, sizeof(et));
     urlenc(body, eb, sizeof(eb));
     snprintf(url, sizeof(url), ISSUES "?title=%s&body=%s", et, eb);
@@ -167,4 +263,5 @@ void crash_update(const Input *in) {
     char was[96];
     snprintf(was, sizeof(was), "Was doing: %s", !memcmp(last.magic, "VOSSTG1", 8) ? last.stage : "unknown");
     text_fit(font, 50, 390, C_FAINT, 14, was, qx - 90);
+    if (fault_line[0]) text_fit(font, 50, 412, C_FAINT, 14, fault_line, qx - 90);
 }

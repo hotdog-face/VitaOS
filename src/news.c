@@ -12,6 +12,7 @@
 #include <psp2/rtc.h>
 #include <psp2/net/netctl.h>
 #include "news.h"
+#include "threads.h"
 #include "store.h"
 
 #define FEED "https://www.reddit.com/r/vitahacks/.rss"
@@ -185,7 +186,7 @@ static int worker(SceSize args, void *argp) {
 }
 
 void news_init(void) {
-    SceUID t = sceKernelCreateThread("news", worker, 0x10000100, 0x8000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("news", worker, 0x10000100, NET_STACK, 0, 0, NULL);
     if (t >= 0) sceKernelStartThread(t, 0, NULL);
 }
 

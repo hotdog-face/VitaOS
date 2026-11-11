@@ -12,6 +12,7 @@
 #include <psp2/appmgr.h>
 #include <psp2/kernel/processmgr.h>
 #include "update.h"
+#include "threads.h"
 #include "version.h"
 #include "store.h"
 #include "ui.h"
@@ -105,7 +106,7 @@ static int check_thread(SceSize args, void *argp) {
 }
 
 void update_init(void) {
-    SceUID t = sceKernelCreateThread("update", check_thread, 0x10000100, 0x8000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("update", check_thread, 0x10000100, NET_STACK, 0, 0, NULL);
     if (t >= 0) sceKernelStartThread(t, 0, NULL);
 }
 
@@ -194,7 +195,7 @@ void update_get(void) {
     if (!newer || busy) return;
     busy = 1;
     stage = 1;
-    SceUID t = sceKernelCreateThread("update-get", install_thread, 0x10000100, 0x8000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("update-get", install_thread, 0x10000100, NET_STACK, 0, 0, NULL);
     if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) { busy = 0; stage = 0; }
 }
 

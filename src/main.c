@@ -25,6 +25,7 @@
 #include <taihen.h>
 
 #include "ssl_locks.h"
+#include "threads.h"
 #include "ui.h"
 #include "play.h"
 #include "apps.h"
@@ -425,7 +426,7 @@ static int lib_thread(SceSize args, void *argp) {
 }
 
 static void lib_start(void) {
-    SceUID t = sceKernelCreateThread("library", lib_thread, 0x10000110, 0x10000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("library", lib_thread, 0x10000110, NET_STACK, 0, 0, NULL);
     if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) lib_done = 0;
 }
 
@@ -481,7 +482,7 @@ static void library_art_now(void) {                  /* Settings > VitaOS > Down
     if (library_is_ours() == 0) { ui_message("Download box art", "This Vita uses a library built on a computer, which has its own art."); return; }
     if (art_running) { ui_toast("Already downloading box art", C_ACCENT); return; }
     art_running = 1; art_quiet = 0; art_done = art_got = 0;
-    SceUID t = sceKernelCreateThread("box_art", art_thread, 0x10000110, 0x10000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("box_art", art_thread, 0x10000110, NET_STACK, 0, 0, NULL);
     if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) { art_running = 0; return; }
     ui_toast("Downloading box art in the background", C_ACCENT);
 }
@@ -506,7 +507,7 @@ static void art_auto_tick(void) {
     if (!strcmp(want, had)) return;
     ui_save(ART_AUTO, want, strlen(want), 0);
     art_running = 1; art_quiet = 1; art_done = art_got = 0;
-    SceUID t = sceKernelCreateThread("box_art", art_thread, 0x10000110, 0x10000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("box_art", art_thread, 0x10000110, NET_STACK, 0, 0, NULL);
     if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) art_running = 0;
 }
 
@@ -632,7 +633,7 @@ int main(void) {
     home_log("init events rc=0x%08X %d\n", sceShellUtilInitEvents(0), 0);
     lock_ps(1);
     {
-        SceUID pt = sceKernelCreateThread("home_power", power_thread, 0x10000100, 0x2000, 0, 0, NULL);
+        SceUID pt = sceKernelCreateThread("home_power", power_thread, 0x10000100, 0x4000, 0, 0, NULL);
         if (pt >= 0) sceKernelStartThread(pt, 0, NULL);
     }
     settings_on_release_ps(release_ps);
@@ -660,11 +661,14 @@ int main(void) {
     play_init();                 /* catalog, lists, the agent remote, launch requests */
     playtime_init();             /* the time of a game Home launched before it closed */
     if (lib_ours > 0) library_rescan_start();
+    /* Networking first: lib_topup asks for the Wi-Fi state straight away, and
+     * a call into SceNetCtl while the module was still loading jumped to
+     * address 0 (issue 12, dump 1: thread lib_topup, PC 0). */
+    int net = net_up();
     {
-        SceUID tt = sceKernelCreateThread("lib_topup", topup_thread, 0x10000110, 0x8000, 0, 0, NULL);
+        SceUID tt = sceKernelCreateThread("lib_topup", topup_thread, 0x10000110, NET_STACK, 0, 0, NULL);
         if (tt >= 0) sceKernelStartThread(tt, 0, NULL);
     }
-    int net = net_up();
     files_init();
     if (net >= 0) downloads_init();
     if (net >= 0) weather_init();
@@ -672,7 +676,7 @@ int main(void) {
     news_init();                                     /* r/vitahacks for the Home row; waits for Wi-Fi itself */
     SceUID pw = sceKernelCreateThread("home_prewarm", prewarm, 0x10000100, 0x8000, 0, 0, NULL);
     if (pw >= 0) sceKernelStartThread(pw, 0, NULL);
-    SceUID wd = sceKernelCreateThread("home_watchdog", watchdog, 0x10000100, 0x2000, 0, 0, NULL);
+    SceUID wd = sceKernelCreateThread("home_watchdog", watchdog, 0x10000100, 0x4000, 0, 0, NULL);
     if (wd >= 0) sceKernelStartThread(wd, 0, NULL);
     SceUID loader = sceKernelCreateThread("home_overlay", overlay_loader, 0x10000100, 0x4000, 0, 0, NULL);
     if (loader >= 0) sceKernelStartThread(loader, 0, NULL);

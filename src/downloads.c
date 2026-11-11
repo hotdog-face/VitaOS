@@ -9,6 +9,7 @@
 #include <curl/curl.h>
 
 #include "downloads.h"
+#include "threads.h"
 #include "store.h"
 #include "shared/fileops.h"
 #include "shared/sha256.h"
@@ -172,6 +173,7 @@ static void run_one(Item *it) {
     CURL *curl = curl_easy_init();
     char errbuf[CURL_ERROR_SIZE] = "";
     curl_easy_setopt(curl, CURLOPT_URL, it->url);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
     curl_easy_setopt(curl, CURLOPT_CAINFO, "app0:assets/cacert.pem");
@@ -258,7 +260,7 @@ static void start(int i, int all) {
 int downloads_init(void) {
     if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) return -1;
     wake_sema = sceKernelCreateSema("wb_dl_wake", 0, 0, 1, NULL);
-    worker = sceKernelCreateThread("wb_download", worker_main, 0x10000100, 0x10000, 0, 0, NULL);
+    worker = sceKernelCreateThread("wb_download", worker_main, 0x10000100, NET_STACK, 0, 0, NULL);
     if (wake_sema < 0 || worker < 0) return -1;
     ready = 1;
     sceKernelStartThread(worker, 0, NULL);

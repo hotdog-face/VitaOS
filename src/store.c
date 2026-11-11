@@ -19,6 +19,7 @@
 #include <psp2/promoterutil.h>
 
 #include "store.h"
+#include "threads.h"
 #include "search.h"
 #include "drop.h"
 #include "apps.h"
@@ -311,6 +312,7 @@ static int fetch(const char *url, const char *dest) {
     CURL *c = curl_easy_init();
     if (!c) { sceIoClose(s.fd); return -1; }
     curl_easy_setopt(c, CURLOPT_URL, url);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(c, CURLOPT_MAXREDIRS, 10L);
     curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
@@ -579,7 +581,7 @@ int store_uninstall(const char *tid, const char *name) {
     snprintf(un_tid, sizeof(un_tid), "%s", tid);
     snprintf(un_name, sizeof(un_name), "%s", name);
     un_busy = 1;
-    SceUID t = sceKernelCreateThread("uninstall", uninstall_thread, 0x10000100, 0x4000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("uninstall", uninstall_thread, 0x10000100, 0x8000, 0, 0, NULL);
     if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) { un_busy = 0; return -1; }
     return 0;
 }
@@ -746,7 +748,7 @@ static void kick(void) { if (wake >= 0) sceKernelSignalSema(wake, 1); }
 
 void store_init(void) {
     wake = sceKernelCreateSema("store", 0, 0, 1, NULL);
-    SceUID t = sceKernelCreateThread("store", worker, 0x10000100, 0x10000, 0, 0, NULL);
+    SceUID t = sceKernelCreateThread("store", worker, 0x10000100, NET_STACK, 0, 0, NULL);
     if (t >= 0) sceKernelStartThread(t, 0, NULL);
 }
 

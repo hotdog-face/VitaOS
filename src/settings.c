@@ -598,7 +598,7 @@ void settings_update(const Input *in) {
     wanted_until = now + 3000000;
     if (!last) {
         last = now;
-        SceUID t = sceKernelCreateThread("settings_refresh", refresher, 0x10000110, 0x4000, 0, 0, NULL);
+        SceUID t = sceKernelCreateThread("settings_refresh", refresher, 0x10000110, 0x8000, 0, 0, NULL);
         if (t >= 0) sceKernelStartThread(t, 0, NULL);
     }
     build_rows();
