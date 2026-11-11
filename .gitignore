@@ -3,3 +3,9 @@ plugin/build/
 *.vpk
 *.suprx
 .DS_Store
+# ...except the patched player module VitaOS ships (MIT, provenance in
+# assets/licenses/REAVPLAYER_PROVENANCE.md). Without it every song, film and
+# preview fails to play: 1.0.0-1.8.4 were published without it.
+!assets/modules/reAvPlayer.suprx
+# The PS plugin bundled into the package is a build product (CI copies it).
+assets/plugin/

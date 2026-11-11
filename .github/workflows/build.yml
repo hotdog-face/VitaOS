@@ -37,16 +37,26 @@ jobs:
           cmake ..
           make
           cp updater.vpk ../../assets/updater.vpk
-      - name: VitaOS
-        run: |
-          mkdir build && cd build
-          cmake ..
-          make -j"$(nproc)"
+      # The PS plugin ships inside VitaOS too (assets/plugin/), so Settings >
+      # VitaOS > Start at power-on can install and update it: built first.
       - name: PS plugin
         run: |
           mkdir plugin/build && cd plugin/build
           cmake ..
           make
+          mkdir -p ../../assets/plugin && cp vitaos_ps.suprx ../../assets/plugin/vitaos_ps.suprx
+      - name: VitaOS
+        run: |
+          # The player module must be in the package (1.0.0-1.8.4 shipped
+          # without it, and nothing could play): stop here if it is missing
+          # or not the recorded binary.
+          echo "8b6d26c97b7e9a3b24ae69d2eadf1f6e7223102dcc375b9ca30e466815a04850  assets/modules/reAvPlayer.suprx" | sha256sum -c -
+          mkdir build && cd build
+          cmake ..
+          make -j"$(nproc)"
+          cmake -E tar tf VitaOS.vpk | grep -q "modules/reAvPlayer.suprx"
+          cmake -E tar tf VitaOS.vpk | grep -q "assets/plugin/vitaos_ps.suprx"
+          cmake -E tar tf VitaOS.vpk | grep -q "assets/updater.vpk"
       - uses: actions/upload-artifact@v4
         with:
           name: vitaos

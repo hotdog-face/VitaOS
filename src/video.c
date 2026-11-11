@@ -300,7 +300,9 @@ static int opener(SceSize args, void *argp) {
         sceKernelSignalSema(open_lock, 1);
         if (current && !ok) {
             char codec[5];
-            if ((who == OWN_MOVIE || who == OWN_MUSIC) && mp4fix_sound_codec(path, codec) == 0 && strcmp(codec, "mp4a"))
+            if ((who == OWN_MOVIE || who == OWN_MUSIC) && module_ready < 0)
+                ui_toast("VitaOS's player module did not load: reinstall VitaOS", C_BAD);
+            else if ((who == OWN_MOVIE || who == OWN_MUSIC) && mp4fix_sound_codec(path, codec) == 0 && strcmp(codec, "mp4a"))
                 ui_toast(!strcmp(codec, "alac") ? "Apple Lossless (ALAC) can't play on the Vita: convert it to AAC"
                                                 : "This file's sound format can't play on the Vita: convert it to AAC", C_BAD);
             else if (who == OWN_MUSIC) ui_toast("That song would not play: it needs to be an AAC .m4a", C_BAD);
