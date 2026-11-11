@@ -72,7 +72,7 @@ static int get(const char *url) {
     curl_easy_setopt(c, CURLOPT_URL, url);
     curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
     curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
-    curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.5 (PS Vita; github.com/mvizensk/VitaOS)");
+    curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.5 (PS Vita; github.com/hotdog-face/VitaOS)");
     curl_easy_setopt(c, CURLOPT_TIMEOUT, 15L);
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, on_data);
@@ -238,7 +238,7 @@ int gamedesc_cover(const char *title, const char *dest_noext, char *out, int max
                 curl_easy_setopt(c, CURLOPT_URL, img);
                 curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);   /* no SIGALRM for timeouts: several threads use curl at once */
                 curl_easy_setopt(c, CURLOPT_CAINFO, "app0:assets/cacert.pem");
-                curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.7 (PS Vita; github.com/mvizensk/VitaOS)");
+                curl_easy_setopt(c, CURLOPT_USERAGENT, "VitaOS/1.7 (PS Vita; github.com/hotdog-face/VitaOS)");
                 curl_easy_setopt(c, CURLOPT_TIMEOUT, 20L);
                 curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
                 curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, to_file);

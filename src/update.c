@@ -17,7 +17,7 @@
 #include "store.h"
 #include "ui.h"
 
-#define API "https://api.github.com/repos/mvizensk/VitaOS/releases/latest"
+#define API "https://api.github.com/repos/hotdog-face/VitaOS/releases/latest"
 #define JSON "ux0:data/arcadehub/update.json"
 #define SEEN "ux0:data/arcadehub/user/update-check.txt"   /* "<unix time> <latest tag>" */
 
@@ -147,7 +147,7 @@ static int install_thread(SceSize args, void *argp) {
     (void)args; (void)argp;
     char vpk[64] = UPD "/VitaOS.vpk", tid[10], mine[10];
     sceIoMkdir(UPD, 0777);
-    if (!vpk_url[0]) snprintf(vpk_url, sizeof(vpk_url), "https://github.com/mvizensk/VitaOS/releases/download/v%s/VitaOS.vpk", latest);
+    if (!vpk_url[0]) snprintf(vpk_url, sizeof(vpk_url), "https://github.com/hotdog-face/VitaOS/releases/download/v%s/VitaOS.vpk", latest);
     stage = 1;
     snprintf(stage_msg, sizeof(stage_msg), "Downloading VitaOS %s", latest);
     if (store_fetch(vpk_url, vpk) < 0) {

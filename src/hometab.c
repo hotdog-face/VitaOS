@@ -461,8 +461,10 @@ void hometab_update(const Input *in) {
     gather();
     drift += 0.004f;
     if (!nitems) {
-        text(bold, 48, 200, C_TEXT, 30, "Welcome back");
+        text(bold, 48, 200, C_TEXT, 30, "Welcome to VitaOS");
         text(font, 48, 236, C_DIM, 18, "Play a game, a film or an album and it shows up here.");
+        text(font, 48, 276, C_DIM, 16, "L and R switch tabs. Games are in Play, homebrew is in the Store.");
+        text(font, 48, 302, C_DIM, 16, "To open VitaOS when the Vita starts: Settings > VitaOS > Start at power-on.");
         return;
     }
     char akey[KEY_LEN];

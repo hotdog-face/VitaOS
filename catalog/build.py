@@ -27,7 +27,7 @@ import urllib.request
 
 VHDB = "https://drdecki.github.io/VitaHomebrewDB/apps.json"
 CBPS = "https://raw.githubusercontent.com/KuromeSan/cbps-db/master/cbpsdb.csv"
-UA = {"User-Agent": "VitaOS-catalog (github.com/mvizensk/VitaOS)"}
+UA = {"User-Agent": "VitaOS-catalog (github.com/hotdog-face/VitaOS)"}
 
 # What is listed but cannot be downloaded, and why (shown on the app's page).
 BLOCK = [

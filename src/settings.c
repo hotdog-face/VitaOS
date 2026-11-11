@@ -629,7 +629,7 @@ static void activate(Row *r) {
     case A_ABOUT:
         ui_message("About VitaOS",
                    "VitaOS " VITAOS_VERSION ": a modern home screen for the PS Vita.\n"
-                   "Open source (GPLv3): github.com/mvizensk/VitaOS\n"
+                   "Open source (GPLv3): github.com/hotdog-face/VitaOS\n"
                    "Not affiliated with or endorsed by Sony Interactive Entertainment. "
                    "PlayStation and PS Vita are trademarks of Sony Interactive Entertainment.\n"
                    "Console photos: Evan-Amos, Wikimedia Commons. Weather: Open-Meteo.");

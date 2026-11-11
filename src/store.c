@@ -31,7 +31,7 @@
 /* VitaOS's own catalogue first: VitaHomebrewDB + CBPS-DB, each GitHub-hosted
  * app at its newest release, rebuilt daily (home/catalog/build.py, the
  * public repo's catalog workflow). VitaHomebrewDB alone if that is down. */
-#define CATALOG_URL "https://github.com/mvizensk/VitaOS/releases/download/catalog/catalog.json"
+#define CATALOG_URL "https://github.com/hotdog-face/VitaOS/releases/download/catalog/catalog.json"
 #define CATALOG_FALLBACK "https://drdecki.github.io/VitaHomebrewDB/apps.json"
 #define ICON_URL "https://drdecki.github.io/VitaHomebrewDB/icons/"
 #define BASE_URL "https://drdecki.github.io/VitaHomebrewDB/"

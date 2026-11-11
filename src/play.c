@@ -1351,9 +1351,13 @@ void play_frame(const Input *in) {
     fullscreen = 0;
     context[0] = 0;
     if (nsys == 0) {
-        uifont_draw(bold, 60, 260, WHITE, 28, "No games yet");
-        uifont_draw(font, 60, 300, DIM, 20, "No catalog found in ux0:data/arcadehub/");
-        hint = "";
+        uifont_draw(bold, 60, 180, WHITE, 28, "No games yet");
+        draw_wrapped(font, "VitaOS shows the PS Vita games you have installed, PSP games in ux0:pspemu, "
+                           "and ROMs in ux0:roms/<console> (for example ux0:roms/snes) once RetroArch is installed.",
+                     60, 222, W - 120, 18, 4, DIM);
+        draw_wrapped(font, "Get RetroArch and other emulators from the Store tab, copy your games over, "
+                           "then choose Settings > VitaOS > Find games again.", 60, 322, W - 120, 18, 3, DIM);
+        hint = "L R  tabs";
         return;
     }
 
