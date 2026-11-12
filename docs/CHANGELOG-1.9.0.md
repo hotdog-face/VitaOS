@@ -124,6 +124,24 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
 - Also not checked on hardware: the crash-report card (red has crash reports
   turned off), icons that used to be blank, and DS/Dreamcast games.
 
+## The CI build on red (run 43140856045, 2026-11-12)
+
+Installed on red with the MCP install tool (backup, every file checked).
+Screenshots are in `docs/screenshots-1.9.0-red/ci-build-43140856045/`.
+
+- 41 of its 43 files are byte-identical to the locally built package tested
+  earlier. The two that differ are the ones compiled in CI: `eboot.bin` and
+  `updater.vpk`. Same compiler, curl and OpenSSL versions.
+- Home, Play, Movies, Music, Apps, Files, Store and Settings open.
+- A song plays (position advances), a film plays, and Play's screensaver
+  reel plays a game preview.
+- About shows VitaOS 1.9.0; Start at power-on shows "Set up", which is
+  right, since the line was removed after the test.
+- Home music was turned on (6/10, system volume 9/30) and VitaOS stayed on
+  Home with no crash or new dump. Whether it sounds clean still needs a
+  person to listen.
+- Not run on the CI build: the Start at power-on restart test.
+
 ## Before release (for Mitchell)
 
 1. On red, with the volume up: turn on Settings > Display & sound > Home
