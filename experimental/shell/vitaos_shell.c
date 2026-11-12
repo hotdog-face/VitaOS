@@ -385,16 +385,27 @@ static void idle_tick(void) {
             slog("the menu did not close: ending it", menu_tid, sceAppMgrDestroyAppByName(MENU_TID));
         }
     } else orphan_ticks = 0;
-    if (sceAppMgrGetRunningAppIdListForShell(ids, 8) > 0 || vitaos_running() || app_running(MENU_TID)) { idle_ticks = 0; return; }
+    static int idle_fails;
+    if (sceAppMgrGetRunningAppIdListForShell(ids, 8) > 0 || vitaos_running() || app_running(MENU_TID)) { idle_ticks = 0; idle_fails = 0; return; }
+    /* 0.6a: VitaOS has just started a game (its launch flag is under a minute
+     * old): a slow start is not "nothing running". */
+    if (home_launch_at && sceKernelGetSystemTimeWide() - home_launch_at < 60ull * 1000 * 1000) { idle_ticks = 0; return; }
     /* A game suspended behind LiveArea is not in that list (it closed one
      * that way on red, 2026-11-12): the game return_tick is following counts. */
     if (armed[0] && still_alive(armed, armed_pid)) { idle_ticks = 0; return; }
-    if (++idle_ticks < 20) return;
+    if (++idle_ticks < 40) return;                       /* 10 s (5 s raced slow launches) */
     idle_ticks = 0;
+    /* Three tries that did not bring VitaOS up: something is in the way (a
+     * system question on screen, such as "The following application will
+     * close"). Asking again every few seconds only stacks more of them (red,
+     * 2026-11-13: 25 tries in five minutes). Wait until something changes. */
+    if (idle_fails >= 3) return;
     const char *home = home_tid();
     if (!home || shell_off() || file_exists(USER "shell-idle.off") || file_exists("ux0:data/arcadehub/deploy.lock")) return;
-    slog("nothing running, opening", home, 0);
+    slog("nothing running, opening", home, idle_fails);
     launch_home(home);
+    if (vitaos_running()) idle_fails = 0;
+    else if (++idle_fails == 3) slog("VitaOS did not open after three tries: waiting for something to change", home, 0);
 }
 
 /* ---------- 0.4: the kernel half (experimental/kernel/vitaos_k.c) ----------
@@ -598,7 +609,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.6 loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.6a loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and

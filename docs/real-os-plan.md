@@ -316,6 +316,26 @@ shows it under the title (`docs/screenshots-real-os/07-...png`). Seen on red.
   updates stop when it closes). It needs a background helper that keeps
   downloading first; the notification call itself is the small part.
 
+**More games, and a retry loop fixed (plugin 0.6a, 2026-11-13).**
+
+- The PS menu opened and PS resumed the same game on **Dustforce** and
+  **Cave Story** as well as Sound Shapes.
+- Bastion, FEZ, Rayman Legends, Cuphead and RetroArch were **not tested**:
+  the dev bridge's `launch` closes VitaOS first, the plugin then reopens
+  VitaOS, and the two collide in Sony's "The following application will
+  close" question. That is the test method, not the menu. Games started
+  from VitaOS itself do not go that way (VitaOS leaves a launch flag and
+  exits). The real test is playing them by hand.
+- Found that way: with that question on screen, 0.6 asked for VitaOS again
+  every 11 s for five minutes. 0.6a waits 10 s (not 5) before deciding
+  nothing is running, never does so within a minute of VitaOS starting a
+  game, and stops after three tries that did not bring VitaOS up until
+  something changes (seen in the log: "VitaOS did not open after three
+  tries").
+- Sony's question itself can be removed by devnoname120's
+  `livearea-no-confirmation` plugin (it finds the code by signature on 3.60
+  to 3.74). Not included here; worth recommending beside this.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -330,7 +350,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.6, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.6a, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete
