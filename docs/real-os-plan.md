@@ -476,9 +476,13 @@ consoles now run the same thing, with no kernel module.
 - On red with 0.9a: the quick-menu-then-PS sequence four times and the
   plain PS cycle four times, no hang; same game in front each time; a game
   ended from outside was back in VitaOS in 2.9 s.
-- Blue is still on 0.8a (an update from here was not permitted without
-  Mitchell's say-so), so the sequence to avoid there is: hold PS, then a
-  short PS within a few seconds.
+- Blue was updated to 0.9a with Mitchell's OK and restarted by itself
+  (VitaOS up at 22 s). On Sound Shapes: PS opens the menu (three times),
+  the quick-menu-then-PS sequence took the stand-aside path and the menu
+  opened 2.3 s later, the same game was in front after closing it, and
+  Close game was back in VitaOS in 4.8 s. Both consoles are on 0.9a.
+- Testing note: blue's bridge answers slowly at times; a test script with
+  short polls stalled past its time limit while blue itself was fine.
 
 What the goal still lacks:
 
