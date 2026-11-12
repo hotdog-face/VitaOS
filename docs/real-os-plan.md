@@ -443,6 +443,14 @@ kernel module is not needed.**
   is still not done. The lock was the missing piece for its PS handling;
   the drawing half is the kernel display hook, the risky part.
 
+**Blue on the kernel-free set-up too (2026-11-13).** VitaOS and plugin
+0.8a installed remotely, `kernel.on` removed, blue restarted by itself
+(VitaOS up at 22 s, "kernel half: off"). On Sound Shapes: PS opens the menu
+(2.8 s the first time, 1.9 s after), PS again closes it and the same game is
+in front, holding PS opens Sony's quick menu, and Close game is back in
+VitaOS in 6.4 s (it took 22 and 36 s there with the older build). Both
+consoles now run the same thing, with no kernel module.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
