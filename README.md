@@ -153,7 +153,8 @@ make
 
 Build `plugin/` first and copy `vitaos_ps.suprx` to `assets/plugin/` (VitaOS
 ships it), and `updater/` for `assets/updater.vpk`; `.github/workflows/build.yml`
-does all three in order. Tests that run on a computer: `tools/test_sysint.sh`
+does all three in order. Tests that run on a computer: `tools/test_sysint.sh`,
+`tools/test_sfx.sh`
 (and `tools/test_mp4fix.sh` for the MP4 tool code, which VitaOS doesn't ship). Crash dumps: `tools/crashdump.py`.
 
 ## Credits

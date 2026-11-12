@@ -16,6 +16,9 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
 - Apple Lossless and other formats VitaOS can't play now get a message
   saying what to convert them to, instead of "That file would not play".
 - Home music and UI sounds no longer crackle or turn to static. (#24)
+- Home music starts by itself. Before, it stayed silent until the first UI
+  sound, because nothing woke the sound mixer once the music was ready
+  (1.8.4 has the same flaw). Heard on red after the fix.
 
 ## Fewer crashes
 
@@ -137,9 +140,10 @@ Screenshots are in `docs/screenshots-1.9.0-red/ci-build-43140856045/`.
   reel plays a game preview.
 - About shows VitaOS 1.9.0; Start at power-on shows "Set up", which is
   right, since the line was removed after the test.
-- Home music was turned on (6/10, system volume 9/30) and VitaOS stayed on
-  Home with no crash or new dump. Whether it sounds clean still needs a
-  person to listen.
+- Home music was turned on (6/10) and VitaOS stayed on Home with no crash
+  or new dump, but **it was silent**: Mitchell heard nothing. That was the
+  wake-up flaw above. With the fix (a later local build) he heard the music.
+  Whether it is clean (no crackle) is still to be confirmed.
 - Not run on the CI build: the Start at power-on restart test.
 
 ## Before release (for Mitchell)
