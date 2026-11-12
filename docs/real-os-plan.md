@@ -66,21 +66,49 @@ of Codex's `agent_autostart.suprx`. Its log (`ux0:data/arcadehub/boot.log`):
 - Blind button presses sent too fast get dropped: one "Close game" test
   pressed Resume instead. Leave about a second between presses.
 
+**Hiding LiveArea on PS: tried, not working (plugin 0.3, same night).**
+
+- Idea: user-mode hooks on the shell's own controller reads take the PS bit
+  out of a short press while a game is in front, so the shell never switches
+  to LiveArea, and the plugin opens the menu straight over the game.
+- What the hooks found: SceShell imports `sceCtrlPeekBufferPositive2`; ScePaf
+  imports `sceCtrlPeekBufferPositive2` and `sceCtrlPeekBufferPositiveExt2`
+  (hook bits `0x0000A002`). The other ten read functions are not imported.
+- Result on red: with the hooks installed, **a PS press ended the game**
+  instead of suspending it (page peeled away within 0.35 s), and the shell
+  still went to LiveArea. This happened even with the hooks passing
+  everything through unchanged. Without the hooks, the same plugin build
+  works as 0.2 did. Why is not known.
+- So PS does not reach the shell only through those reads (Codex's note in
+  `vakern.c` says the same: the shell takes PS from the kernel's button
+  emulation path). Hiding it properly is the kernel route in target 1
+  (reVita's method), which means a `*KERNEL` line: phase 3b, with its own
+  approval.
+- Plugin 0.3c is on red: hooks off unless `user/ps-hide.on` exists.
+- Found and fixed on the way: the "nothing running" return treated a game
+  suspended behind LiveArea as nothing running and closed it after 5 s
+  (0.2 had this; it showed when the menu did not open, and would have after
+  holding PS for the quick menu). 0.3c counts the suspended game. Checked:
+  hold PS, wait 10 s, the game is still there.
+- `user/shell-debug` makes the plugin log every PS press with what was
+  running.
+
 What the goal still lacks:
 
 1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
    shows).
-2. LiveArea still flashes for about half a second when PS opens the menu,
-   and its bubbles are reachable from VitaOS's "system home". Hiding them is
-   Codex's kiosk, which lives in the dev bridge and is off now because it
-   duplicates the plugin's jobs.
+2. LiveArea is still seen in three places: for a second or so when PS opens
+   the menu (needs the kernel route above); from about 8 s to 22 s after
+   power-on, before VitaOS is up; and for a few seconds between a game
+   ending and VitaOS drawing. Its bubbles are also reachable from VitaOS's
+   "system home", on purpose.
 3. Notifications from VitaOS while a game runs (needs the background helper).
 4. An install and uninstall row in Settings, so this is not a hand-made
    set-up on one console. Until then it exists only on red.
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, and `vitaos_shell.suprx` 0.2). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, and `vitaos_shell.suprx` 0.3c). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete
