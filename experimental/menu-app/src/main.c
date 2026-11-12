@@ -15,6 +15,8 @@
 #include <psp2/rtc.h>
 #include <psp2/power.h>
 #include <psp2/avconfig.h>
+#include <psp2/shellutil.h>
+#include <psp2/io/stat.h>
 #include <psp2/registrymgr.h>
 #include <vita2d.h>
 #include <stdio.h>
@@ -160,6 +162,16 @@ int main(void) {
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 
+    /* PS belongs to the menu while it is open: the shell leaves the press
+     * alone (no LiveArea behind the menu), and vitaos_shell, which does see
+     * it, leaves menu.ps for us. PS then means Resume, so PS opens the menu
+     * and PS closes it. */
+    #define MENU_PS "ux0:data/arcadehub/menu.ps"
+    sceIoRemove(MENU_PS);
+    sceShellUtilInitEvents(0);
+    int lrc = sceShellUtilLock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2);
+    dlog("ps lock %08X", lrc);
+
     int sel = 0, act = -1, frame = 0;
     unsigned int prev = 0;
     int was_touch = 0, tx = 0, ty = 0;
@@ -175,6 +187,10 @@ int main(void) {
             if (down & SCE_CTRL_LEFT) nudge(sel, -1);
             if (down & SCE_CTRL_RIGHT) nudge(sel, 1);
             if (down & SCE_CTRL_CIRCLE) act = B_RESUME;
+        }
+        if (frame > 20 && frame % 6 == 0) {
+            SceIoStat st;
+            if (sceIoGetstat(MENU_PS, &st) >= 0) { sceIoRemove(MENU_PS); act = B_RESUME; }
         }
         SceTouchData t;
         sceTouchPeek(SCE_TOUCH_PORT_FRONT, &t, 1);
@@ -225,7 +241,7 @@ int main(void) {
                 vita2d_draw_rectangle(BX + 24, y + 50, (BW - 48) * level(i), 6, RGBA8(139, 162, 255, 255));
             }
         }
-        vita2d_font_draw_text(font, 48, H - 24, RGBA8(140, 150, 180, 255), 15, "X select    left/right change    O resume");
+        vita2d_font_draw_text(font, 48, H - 24, RGBA8(140, 150, 180, 255), 15, "X select    left/right change    O or PS resume");
         vita2d_end_drawing();
         vita2d_swap_buffers();
         if (frame == 0 || frame == 60) dlog("frame %d drawn", frame);
@@ -233,11 +249,12 @@ int main(void) {
     }
 
     dlog("action %d", act);
+    sceShellUtilUnlock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2);
     if (act == B_CLOSE) {
         sceAppMgrDestroyOtherApp();                 /* the suspended game */
         SceUID fd = sceIoOpen("ux0:data/arcadehub/home.req", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
         if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }   /* vitaos_shell opens Home once we are gone */
-        sceKernelDelayThread(800 * 1000);
+        sceKernelDelayThread(250 * 1000);
         /* No launch from here: from a system-mode app both 0x20000 and
          * 0xFFFFF stop on Home's LiveArea page with a Start button (red,
          * 2026-11-12). The shell side (VitaOS's plugin; the dev bridge's kiosk

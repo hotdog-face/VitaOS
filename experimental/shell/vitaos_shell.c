@@ -230,6 +230,23 @@ static void home_req_tick(void) {
     launch_home(home);
 }
 
+/* LiveArea is never where the player is left. If nothing at all is running
+ * (no game, no VitaOS, no system app such as Settings) for 5 s, open VitaOS.
+ * VitaOS parked behind LiveArea by its own "system home" counts as running,
+ * so that way to the bubbles stays. Off with user/shell-idle.off. */
+static int idle_ticks;
+static void idle_tick(void) {
+    SceInt32 ids[8];
+    if (sceKernelGetSystemTimeWide() < 60ull * 1000 * 1000) return;      /* power-on is boot_start's job */
+    if (sceAppMgrGetRunningAppIdListForShell(ids, 8) > 0 || vitaos_running() || app_running(MENU_TID)) { idle_ticks = 0; return; }
+    if (++idle_ticks < 20) return;
+    idle_ticks = 0;
+    const char *home = home_tid();
+    if (!home || shell_off() || file_exists(USER "shell-idle.off") || file_exists("ux0:data/arcadehub/deploy.lock")) return;
+    slog("nothing running, opening", home, 0);
+    launch_home(home);
+}
+
 static int watch(SceSize args, void *argp) {
     (void)args; (void)argp;
     unsigned int was = 0, loops = 0;
@@ -237,7 +254,7 @@ static int watch(SceSize args, void *argp) {
     SceCtrlData pads[16];
     while (running) {
         sceKernelDelayThread(50 * 1000);
-        if (++loops % (TICK_MS / 50) == 0) { return_tick(); home_req_tick(); }
+        if (++loops % (TICK_MS / 50) == 0) { return_tick(); home_req_tick(); idle_tick(); }
         int n = sceCtrlPeekBufferPositive2(0, pads, 16);
         if (n <= 0) continue;
         unsigned int down = 0;
@@ -257,7 +274,12 @@ static int watch(SceSize args, void *argp) {
         if (down && !was && vitaos_running()) {
             SceUID fd = sceIoOpen("ux0:data/arcadehub/ps.tap", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
             if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
-        } else if (down && !was) menu_note_press();
+        } else if (down && !was) {
+            if (app_running(MENU_TID)) {                    /* PS in the menu: it resumes the game */
+                SceUID fd = sceIoOpen("ux0:data/arcadehub/menu.ps", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
+                if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
+            } else menu_note_press();
+        }
         was = pads[n - 1].buttons & 0x10000;
         menu_step(was != 0);
     }
@@ -344,7 +366,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.1 loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.2 loaded", 0, 0, 1);
     lock_patch();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and
      * gone, as AutoBoot does; 15 s at most, 4 s at least. */

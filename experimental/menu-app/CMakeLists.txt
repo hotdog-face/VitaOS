@@ -22,7 +22,7 @@ target_compile_options(pause PRIVATE -O2 -Wall)
 target_link_libraries(pause
   vita2d freetype png jpeg z m bz2
   SceDisplay_stub SceGxm_stub SceSysmodule_stub SceCtrl_stub SceTouch_stub SceAppMgr_stub SceAppUtil_stub
-  SceCommonDialog_stub SceRtc_stub ScePower_stub ScePgf_stub ScePvf_stub SceIofilemgr_stub SceLibKernel_stub SceAVConfig_stub SceRegistryMgr_stub)
+  SceCommonDialog_stub SceRtc_stub ScePower_stub ScePgf_stub ScePvf_stub SceIofilemgr_stub SceLibKernel_stub SceAVConfig_stub SceRegistryMgr_stub SceShellSvc_stub)
 
 set_target_properties(pause PROPERTIES LINK_FLAGS "-Wl,--wrap=sceKernelAllocMemBlock")   # CDRAM -> PHYCONT, see main.c
 vita_create_self(eboot.bin pause UNSAFE ATTRIBUTE 0x02 MEMSIZE 0x4000)
