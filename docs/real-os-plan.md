@@ -124,6 +124,35 @@ with Mitchell's OK for a kernel plugin).**
   menu app reinstalled through the promoter (LiveArea art is cached at
   install).
 
+**Covering the gaps (plugin 0.5a, 2026-11-12):**
+
+- **Launching earlier at power-on does not work, and cost a recovery.** A
+  test switch made the plugin open VitaOS at second 8 instead of waiting for
+  the start-up app (`NPXS10079`, which shows up at about second 18). Red
+  stayed on a black screen and off the network; its log ends at
+  "8 s launching VITAOS001". Mitchell had to restart it holding L and open
+  VitaShell so the switch file could be deleted over FTP. The switch is
+  removed from the code. So LiveArea's ten seconds or so at power-on cannot
+  be shortened from the launch side; it would have to be covered (a boot
+  animation that runs longer, or a full-screen layer drawn in SceShell).
+  Lesson: a test of the boot path needs its own failed-boot guard before it
+  runs, as the lock-screen patches and the kernel half have.
+- **The plugin stands aside for the developer tools**: `deploy.lock`, or
+  Agent Recovery (`MVZA00003`) running. Recovery is not in the shell's
+  running list, so 0.4's "nothing running" and "a game ended" rules kept
+  closing it, which is why installs failed with "connection refused". With
+  0.5 the upload through Recovery worked first time. The boot launch and
+  the lock-screen patch look only at `user/shell.off`, so a stale lock
+  cannot keep VitaOS from opening.
+- Wait before returning to VitaOS after a game ends: 0.75 s (was 1.5 s).
+  A game ended from outside, warm system: VitaOS owns the screen 8.4 s
+  later. Most of that is VitaOS starting; that is where the time is now.
+- The menu app's LiveArea page is plain dark, so the PS transition is a
+  dark page folding in (`docs/screenshots-real-os/05-...png`) with the
+  system's "Please wait..." box for a moment. Reinstalling over an installed
+  title failed in the promoter (`0x80870005`, `0x80101114`); uninstall, then
+  install, works.
+
 What the goal still lacks:
 
 1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
@@ -139,7 +168,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.4, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.5a, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete
@@ -641,3 +670,23 @@ wants one.
 - How much of VitaOS fits in a mini-app budget without dropping features?
   (Phase 1.)
 - Does `psgm:play` resume a suspended game or restart it? (Phase 5.)
+
+## Android on the Vita (VitaProjectDroid), looked at 2026-11-12
+
+Mitchell asked whether https://github.com/Yeetserama/VitaProjectDroid helps.
+It does not serve this goal; it is the same road as target 5.
+
+- It boots LinuxOnVita's kernel bare-metal and runs an Android 5.1.1
+  userspace on it. By its own README it is "pre-boot": the boot package
+  builds, nothing has been booted on a console yet.
+- By its own account there is no GPU driver (software rendering only), no
+  audio, no battery reading, no suspend, no Bluetooth, no camera.
+- Android replaces Sony's system while it runs, so no Vita game, PSP/PS1
+  game through Adrenaline, or Vita homebrew runs there. VitaOS's whole
+  library would be gone.
+- On red specifically: it targets a console with no SD2Vita and reads its
+  files from the Sony card. Red uses SD2Vita through YAMT, and the same
+  bare-metal handoff left red on a black screen with a blue light when
+  Codex tried Linux.
+- The most it could ever be here is a "Boot Android" tile inside VitaOS,
+  once that project boots at all. Worth a look again when it does.

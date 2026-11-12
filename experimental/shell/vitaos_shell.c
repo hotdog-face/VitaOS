@@ -96,7 +96,14 @@ static int still_alive(const char *tid, SceUID pid) {
 static int bridge_loaded(void) { return 0; }
 
 #define USER "ux0:data/arcadehub/user/"
-static int shell_off(void) { return file_exists(USER "shell.off"); }
+/* Everything stands aside with user/shell.off, and while a developer's tools
+ * are at work: deploy.lock (installs over the bridge) or Agent Recovery
+ * running (it is not in the shell's running list, and 0.4 kept closing it). */
+static int shell_off(void) {
+    SceUID id = -1;
+    return file_exists(USER "shell.off") || file_exists("ux0:data/arcadehub/deploy.lock")
+           || (sceAppMgrGetIdByName(&id, "MVZA00003") >= 0 && id > 0);
+}
 
 static void slog(const char *what, const char *tid, int v);
 
@@ -154,7 +161,7 @@ static void return_tick(void) {
     if (still_alive(armed, armed_pid)) { gone_ticks = 0; return; }
     /* 1.5 s with nothing running; RetroFlow's PSP launcher hands over to
      * Adrenaline, so give that one longer. */
-    int settle = sceClibStrncmp(armed, "RETROLNCR", 9) ? 6 : 24;
+    int settle = sceClibStrncmp(armed, "RETROLNCR", 9) ? 3 : 24;   /* 0.5: 0.75 s, was 1.5 s */
     if (++gone_ticks < settle) return;
     armed[0] = 0;
     gone_ticks = 0;
@@ -525,7 +532,7 @@ static SceUID inj[2] = {-1, -1};
 static void patch_guard_clear(void) { sceIoRemove(GUARD); }
 
 static void lock_patch(void) {
-    if (shell_off() || file_exists(USER "lockscreen.keep")) { boot_log("lock screen kept (switch)", 0, 0, 0); return; }
+    if (file_exists(USER "shell.off") || file_exists(USER "lockscreen.keep")) { boot_log("lock screen kept (switch)", 0, 0, 0); return; }
     if (file_exists(GUARD)) { boot_log("lock screen kept: the last boot stopped at the patches", 0, 0, 0); return; }
     tai_module_info_t info;
     sceClibMemset(&info, 0, sizeof(info));
@@ -561,11 +568,14 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.4 loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.5a loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and
      * gone, as AutoBoot does; 15 s at most, 4 s at least. */
+    /* Not earlier than that: a launch at second 8 left red on a black screen
+     * until it was restarted with L held (2026-11-12). The start-up app has
+     * to be done first. */
     int seen = 0;
     for (int i = 0; i < 60 && running; ++i) {
         sceKernelDelayThread(250 * 1000);
@@ -575,7 +585,7 @@ static int boot_start(SceSize args, void *argp) {
     }
     boot_log(seen ? "start-up app done" : "start-up app never seen", 0, 0, 0);
     patch_guard_clear();
-    if (shell_off()) { boot_log("shell.off", 0, 0, 0); return sceKernelExitDeleteThread(0); }
+    if (file_exists(USER "shell.off")) { boot_log("shell.off", 0, 0, 0); return sceKernelExitDeleteThread(0); }   /* the file only: a stale deploy.lock must not keep VitaOS from opening */
     for (int attempt = 0; attempt < 12 && running; ++attempt) {
         char t[16] = "";
         SceUID p = -1;
