@@ -93,14 +93,45 @@ of Codex's `agent_autostart.suprx`. Its log (`ux0:data/arcadehub/boot.log`):
 - `user/shell-debug` makes the plugin log every PS press with what was
   running.
 
+**The kernel route works (plugin 0.4 + `vitaos_k.skprx` 0.1, same night,
+with Mitchell's OK for a kernel plugin).**
+
+- `experimental/kernel/vitaos_k.c`: taiHEN hooks on the kernel's
+  `sceCtrlPeekBufferPositive2` and `...Ext2` exports, acting only on calls
+  from the shell's process (vakern's and ds4vita's pattern). While
+  vitaos_shell says a game is in front, the first half second of a PS press
+  is taken out of what the shell reads; a longer hold is let through.
+- **No `*KERNEL` line and no change to `config.txt`.** vitaos_shell loads the
+  module itself 30 s after power-on (`taiLoadStartKernelModule` from inside
+  SceShell works), from `ux0:data/arcadehub/vitaos_k.skprx`, only with
+  `user/kernel.on`. It writes `boot.kloading` first and removes it after 30 s
+  of running; if that file is still there at the next start, the module is
+  not loaded again. So a bad module costs one restart, not a boot loop, and
+  holding L is not needed to get out.
+- The two halves talk through the hooked call itself: port `0x564B` is not a
+  controller; from the shell's process it sets "armed" and returns the count
+  of short presses hidden.
+- On red: load at 28 s (`400309BD`, a module id). Short PS in Sound Shapes:
+  the shell never saw it (the plugin's own debug line for a PS press did not
+  fire), the menu opened, same game pid after Resume. PS in the menu
+  resumes. Holding PS still opens Sony's quick menu (Wi-Fi, flight mode,
+  Bluetooth, brightness, music), and the game survives it.
+- What is still seen on a short PS: about a second of the shell's own
+  app-launch animation into the menu (its wallpaper, then the menu app's
+  LiveArea page zooming in: `docs/screenshots-real-os/04-...png`). The
+  game's own page and the bubbles are no longer shown. Making the menu's
+  page plain and dark would make that second look like a fade; it needs the
+  menu app reinstalled through the promoter (LiveArea art is cached at
+  install).
+
 What the goal still lacks:
 
 1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
    shows).
-2. LiveArea is still seen in three places: for a second or so when PS opens
-   the menu (needs the kernel route above); from about 8 s to 22 s after
+2. LiveArea is still seen in two places: from about 8 s to 22 s after
    power-on, before VitaOS is up; and for a few seconds between a game
-   ending and VitaOS drawing. Its bubbles are also reachable from VitaOS's
+   ending and VitaOS drawing. (PS over a game now shows only the launch
+   animation into the menu.) Its bubbles are also reachable from VitaOS's
    "system home", on purpose.
 3. Notifications from VitaOS while a game runs (needs the background helper).
 4. An install and uninstall row in Settings, so this is not a hand-made
@@ -108,7 +139,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, and `vitaos_shell.suprx` 0.3c). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.4, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

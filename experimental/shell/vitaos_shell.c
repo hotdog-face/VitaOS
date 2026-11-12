@@ -363,6 +363,77 @@ static void idle_tick(void) {
     launch_home(home);
 }
 
+/* ---------- 0.4: the kernel half (experimental/kernel/vitaos_k.c) ----------
+ * With vitaos_k loaded, a short PS press over a game never reaches the shell
+ * (no LiveArea); it is counted there instead, and the menu is opened here as
+ * soon as the count moves. Loaded at run time, 30 s after power-on, only with
+ * user/kernel.on, and never again after a load that did not finish
+ * (boot.kloading is still there at the next start): delete that file to try
+ * again. The module is ux0:data/arcadehub/vitaos_k.skprx. */
+#define VK_PORT 0x564B
+#define VK_FILE "ux0:data/arcadehub/vitaos_k.skprx"
+#define VK_GUARD "ux0:data/arcadehub/boot.kloading"
+static int vk_state;                       /* 0 not tried, 1 loaded, -1 not available */
+static SceUInt64 vk_loaded_at, vk_opened_at;
+static unsigned int vk_seen;
+
+static void kernel_load(void) {
+    if (vk_state || sceKernelGetSystemTimeWide() < 30ull * 1000 * 1000) return;
+    vk_state = -1;
+    if (shell_off() || !file_exists(USER "kernel.on") || !file_exists(VK_FILE)) { slog("kernel half: off", 0, 0); return; }
+    if (file_exists(VK_GUARD)) { slog("kernel half: not loaded, the last load did not finish", 0, 0); return; }
+    SceUID fd = sceIoOpen(VK_GUARD, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
+    if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
+    int rc = taiLoadStartKernelModule(VK_FILE, 0, NULL, 0);
+    slog("kernel half: load", 0, rc);
+    if (rc < 0) { sceIoRemove(VK_GUARD); return; }
+    int c = sceCtrlPeekBufferPositive2(VK_PORT, NULL, 0);
+    if (c < 0) { slog("kernel half: loaded but not answering", 0, c); sceIoRemove(VK_GUARD); return; }
+    vk_seen = (unsigned int)c;
+    vk_loaded_at = sceKernelGetSystemTimeWide();
+    vk_state = 1;
+}
+
+/* Every 50 ms. */
+static void kernel_step(void) {
+    kernel_load();
+    if (vk_state != 1) return;
+    if (vk_loaded_at && sceKernelGetSystemTimeWide() - vk_loaded_at > 30ull * 1000 * 1000) {   /* it has run for 30 s: the load is good */
+        vk_loaded_at = 0;
+        sceIoRemove(VK_GUARD);
+    }
+    static char t[16];
+    static SceUID p;
+    static int arm, n;
+    int h;
+    if (n++ % 5 == 0)                                      /* every 250 ms: is a game in front? */
+        arm = !ps_failed && !shell_off() && !file_exists(USER "menu.off") && file_exists("ux0:app/" MENU_TID "/eboot.bin")
+              && !app_running(MENU_TID) && running_game(t, &p, &h) && !h;
+    int c = sceCtrlPeekBufferPositive2(VK_PORT, NULL, arm);
+    if (c < 0) return;
+    if ((unsigned int)c != vk_seen) {                      /* a short press was hidden from the shell */
+        vk_seen = (unsigned int)c;
+        if (arm && !app_running(MENU_TID)) {
+            sceClibStrncpy(menu_tid, t, 15);
+            menu_tid[15] = 0;
+            menu_pid = p;
+            menu_at = 0;
+            arm = 0;
+            sceCtrlPeekBufferPositive2(VK_PORT, NULL, 0);  /* the menu holds PS from here */
+            menu_open();
+            vk_opened_at = sceKernelGetSystemTimeWide();
+        }
+    }
+    if (vk_opened_at && sceKernelGetSystemTimeWide() - vk_opened_at > 3000 * 1000) {
+        vk_opened_at = 0;
+        if (!app_running(MENU_TID)) {                      /* the menu did not come up: PS is the shell's again */
+            ps_failed = 1;
+            sceCtrlPeekBufferPositive2(VK_PORT, NULL, 0);
+            slog("hidden PS did not open the menu: PS is the shell's again", menu_tid, 0);
+        } else slog("menu over the game, no LiveArea", menu_tid, 0);
+    }
+}
+
 static int watch(SceSize args, void *argp) {
     (void)args; (void)argp;
     unsigned int was = 0, loops = 0;
@@ -403,6 +474,7 @@ static int watch(SceSize args, void *argp) {
             slog("PS edge: game/home/vitaos/menu bits, tid", t, g | h << 1 | vitaos_running() << 2 | app_running(MENU_TID) << 3 | (menu_at ? 16 : 0) | ps_armed << 5);
         }
         was = pads[n - 1].buttons & 0x10000;
+        kernel_step();
         ps_hide_step(was != 0);
         menu_step(was != 0);
     }
@@ -489,7 +561,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.3c loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.4 loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and

@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.16)
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+  set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
+endif()
+project(vitaos_k C)
+include("${VITASDK}/share/vita.cmake" REQUIRED)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O2 -std=gnu11 -nostdlib")
+add_executable(vitaos_k vitaos_k.c)
+target_link_libraries(vitaos_k SceThreadmgrForDriver_stub SceSysmemForDriver_stub SceSysrootForDriver_stub
+  SceSysrootForKernel_stub SceSysclibForDriver_stub taihenForKernel_stub)
+set_target_properties(vitaos_k PROPERTIES LINK_FLAGS "-nostdlib")
+vita_create_self(vitaos_k.skprx vitaos_k CONFIG ${CMAKE_SOURCE_DIR}/vitaos_k.yml UNSAFE)
