@@ -156,7 +156,7 @@ static volatile int woke;
 /* For the lock screen: when the system last said it was going down. Waking
  * with only SCE_POWER_CB_SYSTEM_RESUME did not show the lock screen on red
  * (2026-11-13), so any resume notice counts, provided a suspend notice came
- * first and the clock has moved at least three seconds since (a trip to
+ * first and the clock has moved at least two seconds since (a trip to
  * LiveArea and back is not a sleep). The notices are logged, a few lines
  * per sleep, to say what the system really sends. */
 static volatile SceUInt64 slept_tick;
@@ -175,7 +175,7 @@ static int power_cb(int notify_id, int notify_count, int info, void *common) {
     if ((info & (SCE_POWER_CB_SYSTEM_RESUME | SCE_POWER_CB_APP_RESUME | SCE_POWER_CB_AFTER_SYSTEM_RESUME | SCE_POWER_CB_SYSTEM_RESUMING | SCE_POWER_CB_APP_RESUMING)) && slept_tick) {
         int secs = (int)((now.tick - slept_tick) / 1000000);
         home_log("power: resume notice 0x%08X after %d s\n", info, secs);
-        if (secs >= 3) { woke = 1; slept_tick = 0; }
+        if (secs >= 2) { woke = 1; slept_tick = 0; }   /* red reported 3 s for a sleep of about ten: not much margin at 3 */
     } else home_log("power: notice 0x%08X %d\n", info, 0);
     return 0;
 }

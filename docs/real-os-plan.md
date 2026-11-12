@@ -494,9 +494,23 @@ running on red and blue (`80c9392052599090...`); the menu package and VitaOS
 package differ from the local ones, as zip archives built at another time do
 (the menu package is the same size).
 
+**VitaOS's lock screen on wake: working (2026-11-13).** The first try showed
+nothing (Mitchell: "straight to VitaOS home"). The system does not send
+`SCE_POWER_CB_SYSTEM_RESUME` to the app on wake: the log shows
+`0x00400000` (app suspend) going down and `0x80A00000` (app resume, app
+resuming) coming back. Any resume notice after a suspend notice now counts,
+if at least two seconds passed. Second try, same steps: the clock screen
+showed. The notices are logged in `home.log` ("power: ...").
+
+**The start-up speed-ups as a normal-release change.** Branch
+`claude/vitaos-faster-start` off `main`, pull request
+https://github.com/hotdog-face/VitaOS/pull/28: the four source changes
+(pictures queued ahead, early background, hashed hidden-games pass,
+`start.log`) with none of the experimental parts and no lock screen. Built
+as a normal package; not run on a console by itself.
+
 What the goal still lacks:
 
-1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
 2. LiveArea is still seen in two places: from about 8 s to 22 s after
    power-on, before VitaOS is up; and for a few seconds between a game
    ending and VitaOS drawing. (PS over a game now shows only the launch
