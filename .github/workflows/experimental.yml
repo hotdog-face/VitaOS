@@ -1,0 +1,86 @@
+name: Experimental build check
+
+# "VitaOS as the system" (docs/real-os-plan.md): checks that the experimental
+# package still builds and that its config-editing tests pass. It runs only
+# for the experimental branch, publishes nothing and uploads no package: an
+# experimental download, if there is ever one, is made on purpose.
+on:
+  push:
+    branches: ["claude/vitaos-real-os"]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Config-editing tests
+        run: sh tools/test_sysint.sh
+
+  build:
+    runs-on: ubuntu-latest
+    container: vitasdk/vitasdk:2026.08-20260925@sha256:fd82d88ff456d118eef16533ebf9a3a6ae0e292684fb8a3a35f15f0707b4692d
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          arm-vita-eabi-gcc --version | head -1
+          grep -h "define LIBCURL_VERSION " $VITASDK/arm-vita-eabi/include/curl/curlver.h
+          # The prebuilt curl must be one built against OpenSSL 1.0 (it then
+          # uses EVP_MD_CTX_create); one built for 1.1+ cannot link with the
+          # OpenSSL 1.0.2 installed below.
+          if arm-vita-eabi-nm $VITASDK/arm-vita-eabi/lib/libcurl.a 2>/dev/null | grep -q "U EVP_MD_CTX_new"; then
+            echo "::error::This image's curl is built against OpenSSL 1.1+; VitaOS needs the pinned image (see the container line)."
+            exit 1
+          fi
+      # The image ships OpenSSL 1.1.1, but its prebuilt curl was compiled
+      # against 1.0 headers: VitaOS would not link, and HTTPS failed when curl
+      # was rebuilt for 1.1.1. Install vitasdk's own OpenSSL 1.0.2 recipe
+      # (the pinned vita-openssl commit), which the prebuilt curl expects.
+      - name: OpenSSL 1.0.2
+        run: |
+          cd /tmp
+          git clone -q https://github.com/d3m3vilurr/vita-openssl.git
+          cd vita-openssl
+          git checkout -q cd52124ffc8e0f0fc8e2bdde93d4c022a0a7fc53
+          ./Configure no-threads --prefix=$VITASDK/arm-vita-eabi/ vita-cross
+          make
+          printf '#!/bin/bash\nmkdir -p $@\n' > util/mkdir-p.pl
+          make install_sw
+      # The VitaOS Updater (one-press updates) ships inside VitaOS as
+      # assets/updater.vpk: built from updater/ first, then bundled.
+      - name: VitaOS Updater
+        run: |
+          mkdir updater/build && cd updater/build
+          cmake ..
+          make
+          cp updater.vpk ../../assets/updater.vpk
+      # The PS plugin ships inside VitaOS too (assets/plugin/), so Settings >
+      # VitaOS > Start at power-on can install and update it: built first.
+      - name: PS plugin
+        run: |
+          mkdir plugin/build && cd plugin/build
+          cmake ..
+          make
+          mkdir -p ../../assets/plugin && cp vitaos_ps.suprx ../../assets/plugin/vitaos_ps.suprx
+      - name: Experimental parts (shell plugin, menu app)
+        run: sh tools/build_experimental.sh
+      - name: VitaOS, experimental
+        run: |
+          echo "8b6d26c97b7e9a3b24ae69d2eadf1f6e7223102dcc375b9ca30e466815a04850  assets/modules/reAvPlayer.suprx" | sha256sum -c -
+          mkdir build-exp && cd build-exp
+          cmake .. -DVITAOS_EXPERIMENTAL=ON
+          make -j"$(nproc)"
+          cmake -E tar tf VitaOS.vpk | grep -q "assets/shell/vitaos_shell.suprx"
+          cmake -E tar tf VitaOS.vpk | grep -q "assets/shell/menu.vpk"
+          # no kernel module in the package, ever
+          ! cmake -E tar tf VitaOS.vpk | grep -q "skprx"
+          sha256sum VitaOS.vpk ../experimental/out/vitaos_shell.suprx ../experimental/out/menu.vpk
+      - name: VitaOS, normal build has none of it
+        run: |
+          mkdir build && cd build
+          cmake ..
+          make -j"$(nproc)"
+          ! cmake -E tar tf VitaOS.vpk | grep -q "assets/shell/"
