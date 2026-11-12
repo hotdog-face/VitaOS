@@ -274,6 +274,30 @@ start as Home appearing "with things slowly loading in".
   Home as the last tab, whose news and weather tiles come from the network
   and are not pictures on the card.
 
+**Robustness pass (2026-11-13), all on red, driven from Settings.**
+
+- **Update its files** (row showed "Update ready"): plugin and kernel half
+  byte-identical to the package afterwards, the menu app updated through the
+  promoter (over the installed one; that works from VitaOS itself), config
+  untouched. The menu app's build is tracked by `user/menu.ver`.
+- **Set up over the released plugin**: Remove, then "Start at power-on" Set
+  up (one `vitaos_ps` line), then "VitaOS as the system" Set up: the
+  `vitaos_ps` line is gone, the `vitaos_shell` line is in, in one write; the
+  result is byte-identical to the config from the first Set up.
+- **A tripped kernel guard** shows as "On, PS part off" and the row offers
+  "Turn the PS part back on" (clears the marker, offers a restart). Tested
+  with a marker put there by hand.
+- **A menu whose game dies** is asked to close (`menu.quit`, plugin 0.5d)
+  and is gone in 4.6 s (was about 20 s of repeated kills); ended by force
+  only if it has not gone after 6 s.
+- **Ghost picture, found and fixed**: after that exit, and after Close game,
+  the menu's last frame stayed in the shell's picture layer (seen in
+  captures over Settings). The menu now leaves an empty, see-through frame
+  behind on those two ways out. Captures after both are clean. Whether the
+  ghost was ever visible on the panel itself is not known.
+- Not looked into: the first PS after a fresh install of the menu app was
+  slow once (LiveArea for a few seconds).
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -288,7 +312,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.5c, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.5d, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

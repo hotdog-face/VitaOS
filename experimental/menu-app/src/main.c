@@ -167,7 +167,10 @@ int main(void) {
      * it, leaves menu.ps for us. PS then means Resume, so PS opens the menu
      * and PS closes it. */
     #define MENU_PS "ux0:data/arcadehub/menu.ps"
+    #define MENU_QUIT "ux0:data/arcadehub/menu.quit"     /* vitaos_shell: the game behind this menu has gone */
     sceIoRemove(MENU_PS);
+    sceIoRemove(MENU_QUIT);
+    int quit = 0;
     sceShellUtilInitEvents(0);
     int lrc = sceShellUtilLock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2);
     dlog("ps lock %08X", lrc);
@@ -191,6 +194,7 @@ int main(void) {
         if (frame > 20 && frame % 6 == 0) {
             SceIoStat st;
             if (sceIoGetstat(MENU_PS, &st) >= 0) { sceIoRemove(MENU_PS); act = B_RESUME; }
+            if (frame % 30 == 0 && sceIoGetstat(MENU_QUIT, &st) >= 0) { sceIoRemove(MENU_QUIT); quit = 1; act = B_RESUME; }
         }
         SceTouchData t;
         sceTouchPeek(SCE_TOUCH_PORT_FRONT, &t, 1);
@@ -249,6 +253,13 @@ int main(void) {
     }
 
     dlog("action %d", act);
+    if (quit || act == B_CLOSE) {
+        /* Nothing is launched from here on these two ways out, so nothing makes
+         * the shell redraw: leave an empty, see-through picture behind, not the
+         * menu's last frame (it stayed in the shell's layer on red, 2026-11-13). */
+        vita2d_set_clear_color(RGBA8(0, 0, 0, 0));
+        for (int i = 0; i < 3; ++i) { vita2d_start_drawing(); vita2d_clear_screen(); vita2d_end_drawing(); vita2d_swap_buffers(); }
+    }
     sceShellUtilUnlock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2);
     if (act == B_CLOSE) {
         sceAppMgrDestroyOtherApp();                 /* the suspended game */
@@ -259,7 +270,7 @@ int main(void) {
          * 0xFFFFF stop on Home's LiveArea page with a Start button (red,
          * 2026-11-12). The shell side (VitaOS's plugin; the dev bridge's kiosk
          * on red) sees that nothing is running and opens Home itself. */
-    } else if (tid[0]) {
+    } else if (tid[0] && !quit) {
         launch_uri(tid);                            /* brings the suspended game back */
     }
     sceKernelDelayThread(300 * 1000);

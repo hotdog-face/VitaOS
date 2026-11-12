@@ -3,6 +3,7 @@
  * on one page instead of the system Settings app's menus. Six cards; the
  * focusable rows are brightness, volume, restart and sleep. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <psp2/ctrl.h>
@@ -422,6 +423,7 @@ static void plugin_action_do(void) {
 #define SH_K_DST "ux0:data/arcadehub/vitaos_k.skprx"
 #define SH_K_ON "ux0:data/arcadehub/user/kernel.on"
 #define SH_LOCK "ux0:data/arcadehub/user/lockscreen.on"
+#define SH_K_GUARD "ux0:data/arcadehub/boot.kloading"   /* left behind by a kernel-half load that did not finish */
 #define SH_MENU_VPK SH_DIR "menu.vpk"
 #define SH_MENU_EBOOT "ux0:app/VTOSPAUSE/eboot.bin"
 
@@ -446,6 +448,26 @@ static int sh_copy(const char *from, const char *to) {
     return sceIoRename(part, to);
 }
 
+/* The menu app is installed like any app. Which build of it is on the card
+ * is remembered by the size of the package it came from. */
+#define SH_MENU_VER "ux0:data/arcadehub/user/menu.ver"
+static int sh_menu_size(void) { SceIoStat st; return sceIoGetstat(SH_MENU_VPK, &st) >= 0 ? (int)st.st_size : 0; }
+static int sh_menu_current(void) {
+    char b[16] = {0};
+    SceUID fd = sceIoOpen(SH_MENU_VER, SCE_O_RDONLY, 0);
+    if (fd < 0) return 0;
+    sceIoRead(fd, b, sizeof(b) - 1);
+    sceIoClose(fd);
+    return sh_exists(SH_MENU_EBOOT) && atoi(b) == sh_menu_size();
+}
+static int sh_menu_install(void) {
+    char tid[10], b[16];
+    int rc = store_prepare_pkg(SH_MENU_VPK, "ux0:data/arcadehub/update/menu-pkg", tid);
+    if (rc >= 0) rc = store_install_dir("ux0:data/arcadehub/update/menu-pkg");
+    if (rc >= 0) ui_save(SH_MENU_VER, b, snprintf(b, sizeof(b), "%d", sh_menu_size()), 0);
+    return rc;
+}
+
 static void shell_action_do(void) {
     SysintState st;
     int on = sysint_shell_state(&st);
@@ -462,11 +484,7 @@ static void shell_action_do(void) {
         int krc = sh_copy(SH_K_SRC, SH_K_DST);
         if (krc >= 0) flag_write(SH_K_ON, 1);
         int mrc = 0;
-        if (!sh_exists(SH_MENU_EBOOT)) {             /* the in-game menu: installed like any app, once */
-            char tid[10];
-            mrc = store_prepare_pkg(SH_MENU_VPK, "ux0:data/arcadehub/update/menu-pkg", tid);
-            if (mrc >= 0) mrc = store_install_dir("ux0:data/arcadehub/update/menu-pkg");
-        }
+        if (!sh_menu_current()) mrc = sh_menu_install();   /* the in-game menu: installed like any app */
         flag_write(BOOT_OFF, 0);
         if (krc < 0 || mrc < 0) {
             snprintf(msg, sizeof(msg), "The plugin is set up, but not everything went in:%s%s\nVitaOS still opens at power-on; "
@@ -479,17 +497,30 @@ static void shell_action_do(void) {
         else ui_toast("VitaOS is the system after the next restart", C_OK);
         return;
     }
-    const char *items[3];
-    int n = 0, act[3];
-    if (!st.current && st.bundled) { items[n] = "Update its files"; act[n++] = 1; }
+    const char *items[4];
+    int n = 0, act[4];
+    int tripped = sh_exists(SH_K_GUARD) && sceKernelGetSystemTimeWide() > 90ULL * 1000000;
+    if (tripped) { items[n] = "Turn the PS part back on"; act[n++] = 4; }
+    if ((!st.current && st.bundled) || !sh_menu_current()) { items[n] = "Update its files"; act[n++] = 1; }
     items[n] = "Remove"; act[n++] = 2;
     items[n] = "What it does"; act[n++] = 3;
     int k = ui_menu(title, items, n);
     if (k < 0) return;
+    if (act[k] == 4) {
+        /* The kernel half is left out after a start in which its load did not
+         * finish (or a restart came within seconds of it). Clearing the
+         * marker lets the next start try again. */
+        sceIoRemove(SH_K_GUARD);
+        if (ui_confirm(title, "The part that keeps LiveArea away when PS is pressed in a game was left out, because "
+                              "its last start did not finish. It will be tried again at the next start. Restart now?")) scePowerRequestColdReset();
+        return;
+    }
     if (act[k] == 1) {
         int rc = sysint_shell_update_file(err, sizeof(err));
         if (rc >= 0 && sh_exists(SH_K_SRC)) rc = sh_copy(SH_K_SRC, SH_K_DST);
+        int mrc = rc >= 0 && !sh_menu_current() ? sh_menu_install() : 0;
         if (rc < 0) ui_message(title, err[0] ? err : "Could not copy the kernel module.");
+        else if (mrc < 0) { snprintf(msg, sizeof(msg), "The plugin is updated, but the menu app could not be (0x%08X). Close any game and try again.", mrc); ui_message(title, msg); }
         else ui_toast("Updated: restart the Vita to use it", C_OK);
     } else if (act[k] == 2) {
         if (!ui_confirm("Remove", "The Vita goes back to its own lock screen and LiveArea, and PS in a game goes to "
@@ -630,8 +661,11 @@ static void build_rows(void) {
             SysintState sh = shell_state;
             int sh_on = shell_on;
             r = add(R_ACTION, A_SHELL, "VitaOS as the system");
+            int sh_tripped = sh_on && flag_set(SH_K_GUARD) && sceKernelGetSystemTimeWide() > 90ULL * 1000000;
             snprintf(r->value, sizeof(r->value), "%s", !sh.config ? "Needs taiHEN" : sh.odd ? "Set up by hand"
-                     : !sh_on ? "Set up" : sh.current || !sh.bundled ? "On" : "Update ready");
+                     : !sh_on ? "Set up" : sh_tripped ? "On, PS part off" : sh.current || !sh.bundled ? "On" : "Update ready");
+            /* (the menu app's own version is only looked at when the row is opened: no card reads on the UI thread) */
+            if (sh_tripped) r->color = C_ACCENT;
             r->sub = "Experimental: starts in VitaOS, PS menu in games, no LiveArea";
             if (!sh_on || (!sh.current && sh.bundled)) r->color = C_ACCENT;
             if (sh_on) {
