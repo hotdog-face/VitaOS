@@ -1,0 +1,3 @@
+  3 s  plugin 1.5 loaded - 00000000
+ 18 s  launching VITAOS001 00000000
+ 23 s  VitaOS is up: VITAOS001 00000000

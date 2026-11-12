@@ -44,7 +44,10 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
     overwritten.
   - VitaOS refuses to edit a config saved as UTF-16 or containing a stray
     zero byte, and tells you to add the line by hand.
-- Plugin 1.4: PS keeps working alongside other controller plugins.
+- Plugin 1.5: PS keeps working alongside other controller plugins, and it
+  writes a short log of what happened at power-on
+  (`ux0:data/arcadehub/boot.log`), so "it didn't open at power-on" can be
+  answered.
 - The clock follows the Vita's own 12/24-hour setting. (#1)
 
 ## Your games, organised your way
@@ -100,27 +103,22 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
   translated dialogs were checked by measuring every language with the real
   fonts (all fit); they weren't opened on the console.
 - Music opens in about 3 s with 2,106 songs.
-- **Start at power-on, set-up and removal (with Mitchell's OK):**
+- **Start at power-on works (tested with Mitchell's OK):**
   - Set up from Settings added exactly one line under `*main` in
     `ur0:tai/config.txt`. `config.txt.before-vitaos` was identical to the
     original, the plugin file matched the package, and no temp files were left.
-  - Remove from the same row gave back a `config.txt` byte-identical to the
-    original.
-  - **The restart in between could not show VitaOS opening at power-on.**
-    Red went dark (black screen, PS light on, off the network) until a
-    button press, then came up in Codex's dev Home.
-  - **A control restart without the plugin went dark the same way,** so the
-    plugin is not the cause. After any restart red stops at the lock screen
-    and its panel goes off within about a minute. Codex's bridge only clears
-    the lock screen in agent mode, and Home waits behind the lock screen
-    before it loads the bridge.
-  - One hint that the plugin did act: with it installed, Codex's autostart
-    needed three tries to get its own Home running; without it, one. That
-    fits VitaOS already being open, but it isn't proof.
-  - **The one test that would prove it:** set it up again on red, restart,
-    and have someone swipe the lock screen away within about 20 seconds of
-    the logo. The bridge log then names which Home opened first
-    (`VITAOS001` or `MVZA00010`).
+  - After a restart, the plugin's own log shows it loaded at 3 s, launched
+    VitaOS at 18 s, and VitaOS was up at 23 s
+    (`17-boot-log-start-at-power-on.txt`).
+  - "Update the plugin" from the same row replaced plugin 1.4 with 1.5.
+  - Remove gave back a `config.txt` byte-identical to the original, twice.
+  - On red only: Codex's `agent_autostart.suprx` then opens its own dev Home
+    over VitaOS a few seconds later, so that is what stays on screen there.
+  - On red only: after any restart it sleeps at the lock screen within about
+    a minute unless someone swipes it. A control restart without the plugin
+    did the same, so this is red's own boot path, not VitaOS.
+  - Not tested: PS going to VitaOS's Home through the plugin (on red the dev
+    bridge handles PS), and the return to VitaOS after a game.
 - **Not verified:** the Home-music static fix. It needs someone to listen;
   a screenshot can't show it, and red's volume is at 0.
 - Also not checked on hardware: the crash-report card (red has crash reports
@@ -130,9 +128,8 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
 
 1. On red, with the volume up: turn on Settings > Display & sound > Home
    music and listen on the Home tab for static or crackle.
-2. Start at power-on is **not proven at power-on**. Before release, either
-   test it on a Vita without Codex's `agent_autostart.suprx`, or ship 1.9.0
-   with the Settings row saying it is new and how to undo it (hold L).
+2. Optional: try Start at power-on on a Vita without Codex's autostart, to
+   see VitaOS stay on screen after power-on.
 3. Push the branch and let CI build it. CI now checks that the player module
    and the plugin are inside the package.
 4. Tag `v1.9.0` to publish.

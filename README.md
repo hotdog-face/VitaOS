@@ -80,6 +80,9 @@ This needs plugins to be loaded when the Vita powers on, which is what
 **Ensō** does. With h-encore or HENkaku without Ensō, plugins only load after
 you run the exploit, so VitaOS opens by itself only after that.
 
+If VitaOS doesn't open at power-on, `ux0:data/arcadehub/boot.log` says what
+the plugin did at the last start.
+
 **If the Vita ever starts badly,** hold **L** while turning it on: that skips
 every plugin for that start. Your old plugin list is saved next to it as
 `tai/config.txt.before-vitaos`.
