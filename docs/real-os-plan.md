@@ -1,0 +1,376 @@
+# VitaOS as the system: experimental plan
+
+Branch `claude/vitaos-real-os`, started 2026-11-11 from 1.9.0 (`f7289fd`).
+Status: plan only. Nothing here has been built or run on a console yet.
+
+The goal is that VitaOS is the system a person uses: it is what appears at
+power-on, what PS returns to from any game, and what owns the in-game menu,
+notifications and the lock screen. LiveArea keeps running underneath (it is
+`SceShell`, which the Vita can't run without) but is never seen.
+
+## Rules for this track
+
+- **Red only.** Blue is never touched.
+- **Nothing reaches mainline users.** No part of this goes into the 1.9.x
+  updater or releases. If it ships, it is a separate, labeled experimental
+  download with install and uninstall steps. Mitchell decides.
+- **Recovery before risk.** Before every kernel or shell change on red: back
+  up `ur0:tai`, write down the exact undo, and confirm the recovery path.
+- **Every experimental module goes in `ur0:tai/config.txt`, never in
+  `ur0:tai/boot_config.txt`.** Holding L at power-on skips `config.txt`; it
+  does not skip `boot_config.txt`.
+- **Mitchell's approval in the work session** for each restart of red, and
+  for anything that writes `os0:`, `vs0:`, `sa0:`, the boot partitions or
+  Ensō, or that could block hold-L recovery. This plan needs none of those
+  writes in phases 0 to 5.
+
+Marks used below: **[red]** proven on red, **[codex]** from Codex's notes on
+red, **[web]** from published plugins or docs and not yet checked on red,
+**[unverified]** a guess that a phase has to prove.
+
+## Red today
+
+| | |
+|---|---|
+| Model | PCH-1000 (OLED). No `imc0:`. 1.9.0's notes call it PCH-2000; that is wrong. |
+| Firmware | 3.65, plain Ensō (no enso_ex; `os0:` dated 2017-03-17) |
+| SceShell | module NID `0x5549BF1F` (3.65 retail) |
+| Storage | SD2Vita 400 GB as `ux0:` through YAMT |
+| `boot_config.txt` | custom, in `ur0:tai/`; loads `vbanim.skprx` and `yamt.skprx` |
+| taiHEN config | `ur0:tai/config.txt` (no `ux0:tai/config.txt`); 1832 bytes, SHA-256 starts `5e98b1f39e53e2a0` |
+| `*KERNEL` | itls, yamt_helper, 0syscall6, nonpdrm, repatch, kubridge, fd_fix, CapUnlocker, azaharnative, ioplus |
+| `*main` | henkaku.suprx, shellbat, pngshot, agent_autostart.suprx |
+| `*NPXS10015` | vbanim.suprx, yamt.suprx |
+| `*ALL` | VitaGrafix |
+| Dev stack (Codex) | `agent_autostart.suprx` opens the dev Home `MVZA00010` about 20 s after boot; Home loads `ux0:data/vita-agent/vakern.skprx` at runtime; `vabridge.suprx` 8.6d2 is injected into SceShell (TCP 1348) |
+| VitaOS | 1.9.0 as `VITAOS001`. Leftovers in `ur0:tai`: `vitaos_ps.suprx` 1.5 (not referenced) and `config.txt.before-vitaos` |
+| After a restart | stops at the lock screen and sleeps within about a minute unless someone swipes **[red]** |
+| Backup | `backups/red-tai-before-start-at-power-on-20261111-1629/ur0-tai/` (34 files, the original config) |
+
+### Recovery ladder for red
+
+1. **Bad user plugin (`*main`, `*ALL`, a title ID):** hold L at power-on.
+   taiHEN skips `config.txt`: `*KERNEL` when taiHEN starts, and `*main` only
+   if L is still held when SceShell starts, so keep holding until the lock
+   screen. Then fix the config over Agent Recovery (FTP 1345) or VitaShell.
+   **[web]**; Codex used hold L on red to get out of the SceShell freeze
+   **[codex]**.
+2. **Bad kernel plugin in `config.txt`:** the same. Hold L.
+3. **With L held, red has no SD2Vita `ux0:`?** No: YAMT loads from
+   `boot_config.txt`, which L does not skip, so `ux0:` stays the SD2Vita card
+   and the tools on it stay reachable. **[unverified]**: check in phase 0
+   against YAMT's source, and once on red when a restart is approved anyway.
+4. **Bad module in `boot_config.txt`:** only Safe Mode helps (R + PS + Power).
+   Safe Mode skips Ensō's patches. "Restart" is the only safe choice there;
+   "Restore the PS Vita System" resets settings and leaves Ensō inactive
+   (re-run the Ensō installer, Square); **never choose "Update"**. This plan
+   never edits `boot_config.txt`. **[web]**
+5. **Black screen with the PS light blue** (seen after Codex's Linux
+   handoff): hold Power about 30 s, then Safe Mode > Restart. **[codex]**
+
+`config.txt` edits follow Codex's rule: copy to
+`config.txt.before-<change>` first, write, read back, compare.
+
+One tooling limit: the bridge and the MCP refuse writes under `tai/`. So tai
+changes on red go through VitaOS's own installer (`src/sysint.c`, as Start at
+power-on does) or Agent Recovery's FTP.
+
+## What already exists
+
+Built by Codex on red (in `i-ha/`, mostly `kiosk-wip/`):
+
+| Piece | What it does | State |
+|---|---|---|
+| Kiosk ("Hide the bubbles") | hides LiveArea's bubbles behind VitaOS | basic version works |
+| Return to Home | reopens Home when a game closes | works with the dev bridge |
+| PS lock | `sceShellUtilLock(0x800)` (`PS_BTN_2`) so PS doesn't leave VitaOS | works |
+| `vaoverlay.skprx` | in-game quick menu drawn from the kernel: hooks `ksceDisplaySetFrameBufInternal` (lib `0x9FED47AC`, NID `0x16466675`), input through `ksceCtrlSetButtonIntercept` | worked over RetroArch; 4 console crashes; parked |
+| `VTOSPAUSE` | system-mode pause app (`-a 0x2808000000000000`, CATEGORY `gdc`, ATTRIBUTE `0x1088088`) | failed; parked 09-28 |
+| LowMemMode hook | SceShell offset `0x272526` (3.65) | written |
+| One-bubble `app.db` | LiveArea with a single bubble | black-screened the shell; recovered by an L-held boot |
+| AppMgr shell-event hooks, headless top menu, shellspawn probe | | never implemented |
+
+In VitaOS 1.9.0: the user plugin `vitaos_ps.suprx` 1.5 (opens VitaOS at
+power-on after a fixed delay, PS goes to VitaOS's Home, boot log), and the
+tai installer in Settings with backup, atomic swap and recovery.
+
+**The open blocker from Codex's work.** A system-mode app running beside a
+game froze SceShell on red, even with ElevenMPV-A, which is known to work on
+other consoles. Codex's Oct 2 bisect: the cause is its own bridge/vakern;
+with the bridge off, coexistence works; hold L recovers. It was never
+narrowed further. Everything in targets 2 and 4 depends on a second app
+living beside a game, so this is the first thing to pin down.
+
+Codex's lessons that this plan keeps:
+
+- No TCP server in the kernel.
+- Never draw from your own thread on a still screen; draw only inside the
+  display hook.
+- Never `ksceKernelCopyToUserProc` into another process's framebuffer.
+- No file I/O on the input thread.
+- Wait 10 s before launching a second app; a double launch around a reboot
+  crashes.
+- Custom boot plugins caused boot loops before. That is why nothing new goes
+  in `boot_config.txt`.
+
+## Architecture
+
+Four parts. Each can be removed on its own.
+
+```
+ur0:tai/config.txt
+  *KERNEL  vitaos_k.skprx     PS button, display hook, suspend/resume   (phase 3+)
+  *main    vitaos_shell.suprx boot launch, lock screen, PAF overlay page (phase 2+)
+
+ux0:app/VTOSX0001             VitaOS built to live beside a game         (phase 1+)
+  eboot.bin   the home screen (mini-app budget)
+  eboot2.bin  background helper: notifications, downloads                 (phase 4)
+```
+
+The experimental build uses its own title ID (`VTOSX0001`) and its own
+plugin file names, so it never collides with a released VitaOS on the same
+card, and the 1.9.x updater never sees it.
+
+### Target 1: VitaOS is the shell
+
+**Never see LiveArea at boot.**
+
+- `vitaos_shell.suprx` runs inside SceShell (`*main`). It waits until the
+  system's start-up app `NPXS10079` has finished, then launches VitaOS. This
+  is AutoBoot's method **[web]**, and replaces plugin 1.5's fixed 15 s wait,
+  which is the main reason LiveArea shows for a while today.
+- Lock screen: NoLockScreen's two patches, `taiInjectData` of `0xBF002001`
+  at SceShell segment 0 offsets `0x23556E` and `0x23626E` (3.65 to 3.73
+  retail) **[web]**. Applied only when SceShell's NID is `0x5549BF1F`;
+  otherwise the plugin does nothing and logs it. This also fixes red sleeping
+  at the lock screen after every restart.
+  - Risk: these patches skip the passcode too. The plugin checks whether a
+    passcode is set and leaves the lock screen alone if so, until VitaOS has
+    its own (target 3).
+- What still shows: the Ensō/boot logo and the first SceShell frames before
+  VitaOS's first frame. To cover them, VitaOS's kernel module can hold the
+  last boot-logo frame until VitaOS draws (phase 3, in the display hook)
+  **[unverified]**.
+
+**PS returns to VitaOS from anywhere.**
+
+- Inside VitaOS: `sceShellUtilLock(PS_BTN_2)` **[red, codex]**.
+- Inside a game: SceShell handles PS itself, so a user plugin can't see it.
+  `vitaos_k.skprx` sees PS for every process through the SceCtrl export
+  hooks (lib `0xD197E3C7`) with reVita's method of telling the shell's reads
+  from the game's (`ksceKernelGetProcessId` import, `0xE2C40624` /
+  `0x9DCB4B7A`) **[web; the NIDs are unverified on 3.65]**. A short press
+  opens VitaOS's overlay (target 2); "Home" in it brings VitaOS forward.
+- `vshPowerSetPsButtonPushTime` (used by Quick Menu Plus) can make the long
+  press instant or disable Sony's quick menu **[web]**.
+
+**Closing a game lands in VitaOS.**
+
+- First version: the plugin polls the foreground app and relaunches VitaOS
+  when a game exits (what `vitaos_ps` and Codex's bridge do today).
+- Better: hook the shell-event imports (`_sceAppMgrReceiveShellEvent`
+  `0xE0DADF51`, SceAppMgrUser `0x8AF17416`) so the plugin is told when an app
+  exits instead of polling **[codex listed these; never implemented]**.
+- With coexistence (below), VitaOS is still running when the game exits, so
+  "return" is only bringing it forward. No relaunch, no load time.
+
+**Hiding LiveArea itself.** Codex's kiosk is kept as the last step (phase 6):
+it only matters for the moments LiveArea could still flash. The
+`livearea-no-confirmation` offsets (`0x27895E`, `0x2725E8`) remove the "close
+this app?" page-peel prompt **[web]**. The one-bubble `app.db` idea is
+dropped: it black-screened the shell.
+
+**Keeping VitaOS resident.** Today VitaOS is built with the game budget
+(`-a 0x2200000000000101`), so starting a game closes it. The experimental
+build is a mini app: `vita-make-fself -m <KB>` (allowed range `0x1000` to
+`0x12800`), CATEGORY `gdc`, ATTRIBUTE as ElevenMPV-A (`0x01089088`) **[web]**.
+Costs and limits:
+
+- Memory: at most about 74 MB (`0x12800` KB), and less is safer. VitaOS's
+  textures (box art, video preview) have to be dropped when a game starts
+  and reloaded when VitaOS comes forward.
+- Games that use enlarged memory kill mini apps. VitaOS has to notice it was
+  killed and fall back to relaunch-on-exit.
+- Codex's `VTOSPAUSE` failed with a different attribute set
+  (`-a 0x2808000000000000`, `0x1088088`); the plan starts from ElevenMPV-A's
+  exact values, which are known to work elsewhere.
+
+### Target 2: the in-game menu
+
+Three steps, cheapest first. Each one is useful if the next fails.
+
+1. **QuickMenuReborn client** (user-mode). A small `suprx` in
+   `ur0:QuickMenuReborn/` adds VitaOS rows to Sony's own quick menu (long
+   press PS): Home, Quit game, volume, brightness, Wi-Fi, screenshot. Uses
+   `QuickMenuRebornRegisterWidget` and friends (MIT) **[web]**. Needs the
+   QuickMenuReborn plugin under `*main`. No kernel code.
+2. **Kernel + PAF overlay** (the vita-jp-overlay / PSVshellPlus pattern
+   **[web]**). `vitaos_k.skprx` takes PS and, while the menu is open, the
+   game's input (SceCtrl and touch export hooks); `vitaos_shell.suprx` draws
+   the menu as a PAF page inside SceShell at `overwrite_draw_priority = 6`,
+   which SceShell composites over the game. The game is paused with
+   `ksceKernelSuspendProcess(pid, 0x1C)` while the menu is open (3.63+ NIDs
+   `0x93B8E785` / `0x6894499C`). Drawing happens in SceShell's own render
+   loop, which avoids every crash class Codex hit with kernel blitting.
+3. **Kernel blit fallback** (Codex's `vaoverlay`): kept for reference only.
+   It drew into the game's framebuffer from the display hook and crashed the
+   console four times.
+
+Menu contents: suspend / quit, volume, brightness, Wi-Fi, battery, clock,
+screenshot. All of these are user-mode calls available inside SceShell
+(`sceAVConfig*`, `sceRegMgr*`, `scePower*`, `sceAppMgrDestroyAppByName`).
+
+### Target 3: notifications, lock screen, status bar
+
+- **Notifications.** `sceNotificationUtilSendNotification` from a
+  background app (`eboot2.bin`, `param2.sfo`, started with
+  `sceBgAppUtilStartBgApp`: the BGFTP pattern **[web]**). Sony's own
+  notification pop-up then carries VitaOS's text: download finished, update
+  ready, battery low. Later, VitaOS's overlay page can draw its own.
+- **Status bar.** Over a game: part of the PAF overlay page. In SceShell's
+  own screens: shellbat's hook points (`0x183F6C`, `0x40E4FC`, and
+  `scePafWidgetSetFontSize` at `0x45D2C8`) **[web]**. Red already runs
+  shellbat, so those offsets are in use on this exact firmware.
+- **Lock screen.** After the NoLockScreen patches, VitaOS draws its own lock
+  screen as its first screen at boot and on wake (clock, notifications,
+  swipe or button to open). A passcode in VitaOS is a later, separate
+  decision: it would only be as strong as the app, so it must be described
+  as a convenience lock and not as security.
+
+### Target 4: app lifecycle
+
+- **Suspend and resume a game from VitaOS.** With VitaOS as a mini app, the
+  game stays in memory when VitaOS comes forward; SceShell suspends it as it
+  does for the quick menu. Resume is `sceAppMgrLaunchAppByUri` with the
+  game's `psgm:play` URI, which brings a running game forward instead of
+  restarting it **[unverified]**.
+- **Fast switching.** VitaOS shows the suspended game as a "Now playing"
+  tile with its last frame (taken in the display hook when PS is pressed).
+- **Quit from VitaOS.** `sceAppMgrDestroyAppByName`; the kernel module's
+  `ksceAppMgrKillProcess` only as a fallback for a hung game.
+- Limit, set by Sony's design: one game-budget app at a time. Two games
+  can't be kept alive. Switching is between one game, VitaOS and mini apps.
+
+### Target 5: a literal own OS (research verdict)
+
+Not a path to a home screen.
+
+- Linux on the Vita has no audio, no GPU acceleration and no access to
+  Sony's memory card **[web]**. None of the Vita's games or apps run under
+  it. A home screen there would be a home screen for nothing.
+- Baremetal has the same problem, plus writing every driver.
+- On red: Linux never booted. Codex's handoff attempts ended in a black
+  screen with a blue PS light, recovered by a 30 s power hold and Safe Mode >
+  Restart **[codex]**. Returning from Linux is known to boot-loop on consoles
+  with YAMT **[web]**, and red uses YAMT.
+- What is realistic: a "Boot Linux" tile in VitaOS for people who already
+  set Linux up. Not planned; listed for completeness.
+
+## Phases
+
+Each phase ends with something seen on red. A phase only starts when the one
+before it passed.
+
+### Phase 0: desk work (no change to red)
+
+- Read taiHEN's and Ensō's source to confirm the recovery ladder above:
+  what L skips, when, and that `boot_config.txt` modules still load.
+- Read Codex's `vabridge.c` / `vakern` to find what could freeze SceShell
+  when a second app runs beside a game. Suspects, from the lessons list: the
+  kiosk's foreground-app watcher relaunching Home as soon as another app is
+  in front, the PS lock, and the SceShell-side TCP server thread.
+- Check the unverified NIDs and offsets against a 3.65 SceShell / kernel
+  dump read from red (read-only) and against the vitasdk NID database.
+- Build `VTOSX0001` (mini-app budget) and the three modules. Unit-test the
+  config installer for the new lines with `tools/test_sysint.sh`.
+
+Proves: the recovery story, and that the build is possible. Risk: none.
+
+### Phase 1: VitaOS lives beside a game (an app install, no tai change)
+
+- Install `VTOSX0001` on red (a new title ID needs the system installer
+  once, through Agent Recovery).
+- Test A, bridge loaded: start a game, bring VitaOS forward. Expect Codex's
+  freeze; this time with logging, to see where.
+- Test B, bridge not loaded (red started with L held, so `agent_autostart`
+  doesn't run; **needs a restart and Mitchell's hands**, since nothing
+  remote works on red without the bridge).
+- Measure memory at each budget and choose the smallest that keeps Home,
+  Play and Settings usable.
+
+Proves: coexistence on red, the real blocker of targets 2 and 4, and what
+the bridge does to break it. Risk: a frozen SceShell (hold Power 10 s,
+restart). Undo: delete the app.
+
+### Phase 2: VitaOS at boot, no lock screen (first tai change, user-mode)
+
+- Adds one line under `*main` in `ur0:tai/config.txt`:
+  `ur0:tai/vitaos_shell.suprx`. **This is the first change in the plan that
+  touches red's tai config.** It is user-mode, inside SceShell.
+- Wait-for-`NPXS10079` launch, NoLockScreen patches behind the NID check,
+  return-to-VitaOS on game exit, boot log as in plugin 1.5.
+- On red, `agent_autostart.suprx` is commented out for this test (it opens
+  the dev Home over VitaOS), and put back afterwards.
+
+Proves: power-on to VitaOS with no swipe and no bubbles in between; red no
+longer goes dark after a restart. Risk: SceShell crashes at start (black
+screen or restart loop). Recovery: hold L until the lock screen, restore
+`config.txt.before-vitaos-shell`. Needs: Mitchell's OK for the config change
+and for each restart.
+
+### Phase 3: PS and the menu (first kernel change)
+
+- 3a: QuickMenuReborn client (user-mode; one more `*main` line).
+- 3b: `ur0:tai/vitaos_k.skprx` under `*KERNEL` in `config.txt`: PS seen
+  everywhere, input taken while the menu is open, game suspended; PAF
+  overlay page in `vitaos_shell.suprx`.
+
+Proves: PS in a game opens VitaOS's menu over it; Home in the menu lands in
+VitaOS with the game still alive. Risk: a kernel module can stop the console
+from starting or crash it. Recovery: hold L (skips `*KERNEL` in
+`config.txt`), remove the line. The module loads from `config.txt` only, so
+Safe Mode is not needed. Needs: Mitchell's OK, with this risk stated again
+at the time.
+
+### Phase 4: notifications, status bar, lock screen
+
+Background helper (`eboot2.bin`), notifications, the status bar in the
+overlay, VitaOS's lock screen. No new hook points beyond phase 3.
+
+Proves: a finished download shows as a notification inside a game.
+
+### Phase 5: lifecycle
+
+"Now playing" tile, resume without restart, quit from VitaOS, falling back
+cleanly when an enlarged-memory game kills VitaOS.
+
+Proves: game > PS > VitaOS > Music > back to the same game, still running.
+
+### Phase 6: hide what's left, and package
+
+Codex's kiosk for any remaining LiveArea flashes, the boot-logo hold, and
+the page-peel prompt patches. An installer and an uninstaller in VitaOS's
+Settings that add and remove all experimental lines in one step, with the
+same backup rules as Start at power-on. A separate download, if Mitchell
+wants one.
+
+## Risks, in one table
+
+| Change | Worst case | Recovery | Needs approval |
+|---|---|---|---|
+| New app `VTOSX0001` | SceShell freeze while testing | hold Power 10 s | install: no; restarts: yes |
+| `*main` line (`vitaos_shell.suprx`) | SceShell crash at boot | hold L, restore config | yes |
+| NoLockScreen patches | passcode skipped | plugin checks for a passcode; remove line | part of the above |
+| `*KERNEL` line (`vitaos_k.skprx`) | no boot, or crash | hold L, restore config | yes, risk restated |
+| Process suspend from the kernel | hung game or console | hold Power 10 s | part of the above |
+| `boot_config.txt`, `os0:`, `vs0:`, `sa0:`, Ensō | brick-class | Safe Mode at best | **not in this plan** |
+
+## Open questions
+
+- Does holding L on red still give the SD2Vita `ux0:`? (Phase 0, then one
+  check on red.)
+- What in the bridge freezes SceShell beside a second app? (Phases 0 and 1.)
+- Are the reVita and suspend/resume NIDs right on 3.65? (Phase 0.)
+- How much of VitaOS fits in a mini-app budget without dropping features?
+  (Phase 1.)
+- Does `psgm:play` resume a suspended game or restart it? (Phase 5.)
