@@ -418,7 +418,10 @@ static void kernel_load(void) {
 static void kernel_step(void) {
     kernel_load();
     if (vk_state != 1) return;
-    if (vk_loaded_at && sceKernelGetSystemTimeWide() - vk_loaded_at > 30ull * 1000 * 1000) {   /* it has run for 30 s: the load is good */
+    /* It has run for 10 s: the load is good. (30 s at first: a restart 12 s
+     * after the load then left the guard behind and the module was not
+     * loaded again, 2026-11-13.) */
+    if (vk_loaded_at && sceKernelGetSystemTimeWide() - vk_loaded_at > 10ull * 1000 * 1000) {
         vk_loaded_at = 0;
         sceIoRemove(VK_GUARD);
     }
@@ -581,7 +584,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.5b loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.5c loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and

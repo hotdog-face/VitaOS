@@ -239,9 +239,18 @@ after 3 s. One had been left open that way and kept VitaOS from coming back.
 - Power-on, in his words: boots normally, "updating database", the spinning
   logo, a flash of VitaOS's LiveArea card, the PS Vita logo, then VitaOS's
   Home with things loading in. He did not mention the bubbles.
-  - "Updating database" at every start is not expected. It may be a one-off
-    after the menu app was installed and removed several times that night;
-    to check at the next few starts.
+  - "Updating database": checked from the Mac over two more restarts. The
+    system's `ur0:shell/db/app.db` keeps its size (704,512 bytes) and there
+    is no rebuild marker (`dbr.db-err`), so the database is not being
+    rebuilt at each start; the file's date moves at every start anyway. The
+    message he saw was most likely the one start after that night's app
+    installs. Not seen by eye again yet.
+- Found while checking: restarting red twice within a minute tripped the
+  kernel half's guard (`boot.kloading` was only cleared after 30 s of
+  running, and the second restart came 12 s after the load), so it was not
+  loaded on the next start: PS went the LiveArea way again. Plugin 0.5c
+  clears the guard after 10 s. A restart inside those 10 s still trips it;
+  deleting `ux0:data/arcadehub/boot.kloading` brings it back.
 
 What the goal still lacks:
 
@@ -257,7 +266,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.5b, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.5c, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete
