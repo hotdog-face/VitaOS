@@ -101,6 +101,40 @@ with the bridge off, coexistence works; hold L recovers. It was never
 narrowed further. Everything in targets 2 and 4 depends on a second app
 living beside a game, so this is the first thing to pin down.
 
+**What a read of the bridge source found (2026-11-12, code only, nothing run
+on red).** Files: `i-ha/kiosk-wip/vabridge.c` (8.6d2) and
+`i-ha/agent-service/kernel/vakern.c`. No line provably deadlocks. The notes
+disagree with each other (09-28 says it froze "even alone/with L held";
+10-02 says hold L works), the freeze is intermittent, and nobody looked for
+a SceShell core dump, so SceShell may have crashed rather than hung.
+Suspects, most likely first:
+
+1. **Return-to-Home launches Home over the second app.** The watcher's
+   `front_app` (`vabridge.c:1249`) only looks at display plane 0; a system
+   app draws on the shell plane, so the watcher can't see it and, after its
+   10 s hold, calls `return_home()` (1295), which can launch twice and can
+   race a `launch` on the server thread. Switch that already exists:
+   `ux0:data/arcadehub/return.off`.
+2. **The bridge's `launch` command** (201-226) closes every non-system app
+   and may launch a second time. The "bridge on" rows of the bisect probably
+   used `launch`, the "bridge off" rows the bubble, so the bisect may have
+   compared launch methods. Test: bridge on, open the app from its bubble or
+   with `launchkeep`.
+3. **The LowMemMode hook** (1521-1543) returns 0 for every launch budget
+   check. Switch: `user/lowmem.off` (read at load).
+4. **The watcher's polling as a whole** (15 to 25 AppMgr calls per 100 ms).
+   Switches: the seven `diag-skip-*` files.
+5. **vakern alone** (16 ctrl/touch hooks, an 8 ms tick thread). No switch;
+   test by moving `vabridge.suprx` aside so only vakern loads.
+
+Also a logic bug for later: if a mini app ever owns plane 0, the watcher
+re-arms on it and forgets the game, and its exit can close the suspended
+game. VitaOS's own shell plugin must track both apps.
+
+So phase 1 on red starts with these switches, one at a time, and a check
+for a SceShell `psp2core` after any freeze. All are files under
+`ux0:data`, not tai changes.
+
 Codex's lessons that this plan keeps:
 
 - No TCP server in the kernel.
