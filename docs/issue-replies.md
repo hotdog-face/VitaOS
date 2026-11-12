@@ -81,11 +81,19 @@ For #19, which also mentions box art and dead buttons, add:
 
 ## #24: static music
 
-> Thanks. The Home music (and the UI sounds) refilled a sound buffer while the
-> Vita was still playing it, which comes out as crackle and static. 1.9.0 fixes
-> that. If you still hear static after updating, please say whether it's the
-> Home music or songs from the Music tab. Music-tab songs didn't play at all
-> in 1.8.4 (see #15), so that would be a different problem.
+> Thanks, this led to three fixes in 1.9.0, all in the Home music:
+>
+> - **Static:** the Home music (and the UI sounds) refilled a sound buffer
+>   while the Vita was still playing it, which comes out as crackle and
+>   static. Fixed, and checked by ear on a real Vita: it's clean now.
+> - **Silence:** the music often didn't start at all until the first UI
+>   sound, because nothing woke the sound mixer once the music was ready.
+> - **Level:** it was mixed so low that it was barely audible even at full
+>   volume. It's about 10 dB louder now.
+>
+> If you still hear static after updating, please say whether it's the Home
+> music or songs from the Music tab. Music-tab songs didn't play at all in
+> 1.8.4 (see #15), so that would be a different problem.
 
 ## #4: Japanese game titles don't render
 

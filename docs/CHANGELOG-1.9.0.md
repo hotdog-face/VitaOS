@@ -16,9 +16,14 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
 - Apple Lossless and other formats VitaOS can't play now get a message
   saying what to convert them to, instead of "That file would not play".
 - Home music and UI sounds no longer crackle or turn to static. (#24)
-- Home music starts by itself. Before, it stayed silent until the first UI
-  sound, because nothing woke the sound mixer once the music was ready
-  (1.8.4 has the same flaw). Heard on red after the fix.
+- **Home music can actually be heard.** In 1.8.4 it stayed silent until the
+  first UI sound, because nothing woke the sound mixer once the music was
+  ready, and it was mixed so low that it was barely audible with the volume
+  all the way up. Most people who turned it on probably never heard it. It
+  now starts by itself and is about 10 dB louder (about -11 dBFS at 6/10).
+  Heard on red after the fix: it plays without a button press and is clean.
+- UI sounds are twice as loud, so they still stand out over the music.
+  Nothing clips with both at 10/10.
 
 ## Fewer crashes
 
