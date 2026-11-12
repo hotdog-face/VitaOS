@@ -28,8 +28,6 @@
 #include <psp2/kernel/modulemgr.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
-#include <psp2/avconfig.h>
-#include <psp2/registrymgr.h>
 
 static volatile int running = 1;
 static SceUID thread = -1;
@@ -441,122 +439,6 @@ static void kernel_load(void) {
     vk_state = 1;
 }
 
-/* ---------- 0.7: the overlay (vitaos_k 0.2) ----------
- * With user/overlay.on, a short PS over a game does not open the menu app:
- * the kernel half draws a card straight into the game's picture, so there is
- * no app switch and none of the shell's animations. This side runs it: which
- * row, the levels, what X does. The game keeps running underneath, without
- * buttons. If the card is never drawn (a game whose picture the kernel half
- * will not write into), it closes and the menu app opens as before, and the
- * overlay stays off until the next start. boot.overlay marks "the card is
- * up"; found at a start, it means the console went down with it up, and the
- * overlay is then left off until that file is deleted. */
-#define OV_GUARD "ux0:data/arcadehub/boot.overlay"
-#define BTN_UP 0x10
-#define BTN_RIGHT 0x20
-#define BTN_DOWN 0x40
-#define BTN_LEFT 0x80
-#define BTN_CIRCLE 0x2000
-#define BTN_CROSS 0x4000
-#define BRIGHT_MIN 21
-#define BRIGHT_MAX 65536
-static int ov_up, ov_sel, ov_vol, ov_bright, ov_off = -1;
-static unsigned int ov_prev;
-static SceUInt64 ov_since;
-static char ov_tid[16];
-static SceUID ov_pid;
-
-static int overlay_wanted(void) {
-    if (ov_off < 0) {
-        ov_off = file_exists(OV_GUARD);
-        if (ov_off) slog("overlay: off, the console went down with it up (delete boot.overlay to try again)", 0, 0);
-    }
-    return !ov_off && file_exists(USER "overlay.on");
-}
-
-/* Brightness as 0..100 for the card (32-bit division only: no C runtime here). */
-static int ov_pct(void) {
-    int pct = (ov_bright - BRIGHT_MIN) / 655;
-    return pct < 0 ? 0 : pct > 100 ? 100 : pct;
-}
-
-static void overlay_send(void) {
-    sceCtrlPeekBufferPositive2(VK_PORT + 1, NULL, 1 | ov_sel << 1 | ov_vol << 8 | ov_pct() << 16);
-}
-
-static void overlay_shut(const char *why) {
-    if (!ov_up) return;
-    ov_up = 0;
-    /* Buttons up first (half a second at most), or the game sees the X or O
-     * that closed the card. */
-    for (int i = 0; i < 20; ++i) {
-        int held = sceCtrlPeekBufferPositive2(VK_PORT + 3, NULL, 0);
-        if (held < 0 || !(held & 0xFFFF)) break;
-        sceKernelDelayThread(25 * 1000);
-    }
-    sceCtrlPeekBufferPositive2(VK_PORT + 2, NULL, 0);
-    sceIoRemove(OV_GUARD);
-    if (why) slog(why, ov_tid, 0);
-}
-
-static int overlay_show(const char *tid, SceUID pid) {
-    SceUID fd = sceIoOpen(OV_GUARD, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
-    if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
-    int rc = sceCtrlPeekBufferPositive2(VK_PORT + 2, NULL, (int)pid);
-    if (rc < 0) { sceIoRemove(OV_GUARD); slog("overlay: the kernel half would not open it", tid, rc); return rc; }
-    sceClibStrncpy(ov_tid, tid, 15);
-    ov_tid[15] = 0;
-    ov_pid = pid;
-    ov_sel = 0;
-    if (sceAVConfigGetSystemVol(&ov_vol) < 0) ov_vol = 15;
-    if (sceRegMgrGetKeyInt("/CONFIG/DISPLAY", "brightness", &ov_bright) < 0) ov_bright = BRIGHT_MAX / 2;
-    ov_prev = 0xFFFFFFFF;                        /* nothing counts as newly pressed on the first look */
-    ov_since = sceKernelGetSystemTimeWide();
-    ov_up = 1;
-    overlay_send();
-    slog("overlay over", tid, 0);
-    return 0;
-}
-
-/* Every 50 ms while the card is up. Returns 1 when the menu app should open
- * in its place (the card could not be drawn). */
-static int overlay_step(void) {
-    if (!still_alive(ov_tid, ov_pid)) { overlay_shut("overlay: the game is gone"); return 0; }
-    int drawn = sceCtrlPeekBufferPositive2(VK_PORT + 1, NULL, 1 | ov_sel << 1 | ov_vol << 8 |
-                    ov_pct() << 16);
-    if (drawn <= 0 && sceKernelGetSystemTimeWide() - ov_since > 1500 * 1000) {
-        overlay_shut("overlay: never drawn over this game; the menu app from here on");
-        ov_off = 1;
-        return 1;
-    }
-    int b = sceCtrlPeekBufferPositive2(VK_PORT + 3, NULL, 0);
-    if (b < 0) return 0;
-    unsigned int now = (unsigned int)b, down = now & ~ov_prev;
-    ov_prev = now;
-    if (down & BTN_UP) ov_sel = ov_sel > 0 ? ov_sel - 1 : 0;
-    if (down & BTN_DOWN) ov_sel = ov_sel < 3 ? ov_sel + 1 : 3;
-    int dir = (down & BTN_RIGHT) ? 1 : (down & BTN_LEFT) ? -1 : 0;
-    if (dir && ov_sel == 1) {
-        ov_vol += dir;
-        if (ov_vol < 0) ov_vol = 0;
-        if (ov_vol > 30) ov_vol = 30;
-        sceAVConfigSetSystemVol(ov_vol);
-    } else if (dir && ov_sel == 2) {
-        ov_bright += dir * (BRIGHT_MAX / 16);
-        if (ov_bright < BRIGHT_MIN) ov_bright = BRIGHT_MIN;
-        if (ov_bright > BRIGHT_MAX) ov_bright = BRIGHT_MAX;
-        sceAVConfigSetDisplayBrightness(ov_bright);
-        sceRegMgrSetKeyInt("/CONFIG/DISPLAY", "brightness", ov_bright);
-    }
-    if (down & BTN_CIRCLE) overlay_shut("overlay: closed");
-    else if ((down & BTN_CROSS) && ov_sel == 0) overlay_shut("overlay: resume");
-    else if ((down & BTN_CROSS) && ov_sel == 3) {
-        overlay_shut("overlay: close game");
-        slog("overlay: ending", ov_tid, sceAppMgrDestroyAppByName(ov_tid));
-    } else if (down) overlay_send();
-    return 0;
-}
-
 /* Every 50 ms. */
 static void kernel_step(void) {
     kernel_load();
@@ -577,17 +459,9 @@ static void kernel_step(void) {
               && !app_running(MENU_TID) && running_game(t, &p, &h) && !h;
     int c = sceCtrlPeekBufferPositive2(VK_PORT, NULL, arm);
     if (c < 0) return;
-    int fallback = 0;
-    if (ov_up) {
-        if ((unsigned int)c != vk_seen) { vk_seen = (unsigned int)c; overlay_shut("overlay: closed with PS"); return; }
-        fallback = overlay_step();
-        if (!fallback) return;
-        running_game(t, &p, &h);                           /* the menu app instead, over the same game */
-    }
-    if ((unsigned int)c != vk_seen || fallback) {          /* a short press was hidden from the shell */
+    if ((unsigned int)c != vk_seen) {                      /* a short press was hidden from the shell */
         vk_seen = (unsigned int)c;
-        if (!fallback && arm && !app_running(MENU_TID) && overlay_wanted() && overlay_show(t, p) >= 0) return;
-        if ((arm || fallback) && !app_running(MENU_TID)) {
+        if (arm && !app_running(MENU_TID)) {
             sceClibStrncpy(menu_tid, t, 15);
             menu_tid[15] = 0;
             menu_pid = p;
@@ -735,7 +609,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.7 loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.6a loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and

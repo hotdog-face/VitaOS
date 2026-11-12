@@ -2,7 +2,7 @@ vitaos_k:
   attributes: 0
   version:
     major: 0
-    minor: 2
+    minor: 1
   main:
     start: module_start
     stop: module_stop

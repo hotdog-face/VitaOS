@@ -394,6 +394,23 @@ game with PS "was quite glitchy, but it worked".
   live game, with no app switch (the kernel + PAF overlay in target 2,
   step 2). That is the next big piece if the animation matters.
 
+**In-game overlay: tried, not working, and it hung red (2026-11-13).**
+
+The idea: no menu app at all; the kernel half draws a card into the game's
+own frames and the plugin runs it, so there is no app switch and none of the
+shell's animations. Code and the full account are in
+`experimental/overlay-wip/`. In short: the first run showed the game's
+LiveArea page instead of the card, and a test build with the display hook
+left out stopped red answering two seconds after PS; Mitchell had to hold
+Power for 30 s. Red was put back on plugin 0.6a and kernel half 0.1 (same
+hashes as before) and the menu test passes again. Blue was never given any
+of it. The working kernel half and plugin are what `experimental/kernel` and
+`experimental/shell` hold; the overlay is not built.
+
+Lesson, again: kernel code tried live costs a forced restart every time it
+is wrong. The next attempt needs a trace before each step and one piece
+tested at a time (see the README there).
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -407,7 +424,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.6a, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.6a (not 0.7), and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete
