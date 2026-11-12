@@ -235,6 +235,8 @@ int main(void) {
     dlog("action %d", act);
     if (act == B_CLOSE) {
         sceAppMgrDestroyOtherApp();                 /* the suspended game */
+        SceUID fd = sceIoOpen("ux0:data/arcadehub/home.req", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
+        if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }   /* vitaos_shell opens Home once we are gone */
         sceKernelDelayThread(800 * 1000);
         /* No launch from here: from a system-mode app both 0x20000 and
          * 0xFFFFF stop on Home's LiveArea page with a Start button (red,
