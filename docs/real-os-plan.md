@@ -135,6 +135,36 @@ So phase 1 on red starts with these switches, one at a time, and a check
 for a SceShell `psp2core` after any freeze. All are files under
 `ux0:data`, not tai changes.
 
+**First run on red (2026-11-12, about 20:00 UTC, with Mitchell's OK).**
+State: bridge 8.6d2 and vakern loaded; `kiosk.on`, `lowmem.off` and
+`pause.off` present in `user/`; the kiosk had switched itself off for this
+boot ("4 relaunches in 10 min") and was standing aside; Home in front was
+`VITAOS001` 1.9.0. ElevenMPV-A (`GRVA00008`) was the second app.
+
+| Run | Beside | How Eleven was opened | Result |
+|---|---|---|---|
+| 1 | VitaOS Home | `launchkeep`, then tap Start on its page | ran; Home stayed suspended on its own page; bridge answered for 30 s |
+| 2 | VitaOS Home | back to Home, 12 s wait, `launchkeep` again | fine |
+| 3 | VitaOS Home | the closing `launch` command | fine for 60 s |
+| 4 | Persona 4 Golden (`PCSE00120`), started from its page | `launchkeep`, then tap Start | **froze**: the bridge stopped answering within 6 s; ping still answers |
+
+What this changes:
+
+- Bridge plus vakern do not freeze SceShell by themselves: a system app ran
+  beside a game-budget app (VitaOS) three times, including with `launch`.
+  That weakens suspects 2, 4 and 5.
+- The freeze came with a retail game. So the next question is memory, not
+  the watcher: with `lowmem.off` set, the bridge's LowMemMode hook is off,
+  and SceShell's own budget check then runs for a system app starting beside
+  a game that uses much more memory than VitaOS does. Unverified.
+- `launchkeep` opens the app's LiveArea page with a Start gate, not the app.
+  The shell plugin will need the gate patched or tapped.
+- `launch PCSE00120` timed out and left the game on its Start gate too.
+
+Not known yet: whether SceShell crashed (look for a new `psp2core` once red
+is back), whether the same run freezes with the bridge not loaded, and
+whether it freezes with the LowMemMode hook on.
+
 Codex's lessons that this plan keeps:
 
 - No TCP server in the kernel.
