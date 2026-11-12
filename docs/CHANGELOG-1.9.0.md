@@ -21,7 +21,8 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
   ready, and it was mixed so low that it was barely audible with the volume
   all the way up. Most people who turned it on probably never heard it. It
   now starts by itself and is about 10 dB louder (about -11 dBFS at 6/10).
-  Heard on red after the fix: it plays without a button press and is clean.
+  Confirmed by ear on red: it starts without a button press, the level is
+  good, it is clean, and UI clicks are audible over it.
 - UI sounds are twice as loud, so they still stand out over the music.
   Nothing clips with both at 10/10.
 
@@ -127,8 +128,8 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
     did the same, so this is red's own boot path, not VitaOS.
   - Not tested: PS going to VitaOS's Home through the plugin (on red the dev
     bridge handles PS), and the return to VitaOS after a game.
-- **Not verified:** the Home-music static fix. It needs someone to listen;
-  a screenshot can't show it, and red's volume is at 0.
+- **Home music, by ear (Mitchell):** starts by itself, good level, clean,
+  clicks audible. This was on the local build of the final sound code.
 - Also not checked on hardware: the crash-report card (red has crash reports
   turned off), icons that used to be blank, and DS/Dreamcast games.
 
@@ -147,14 +148,13 @@ Screenshots are in `docs/screenshots-1.9.0-red/ci-build-43140856045/`.
   right, since the line was removed after the test.
 - Home music was turned on (6/10) and VitaOS stayed on Home with no crash
   or new dump, but **it was silent**: Mitchell heard nothing. That was the
-  wake-up flaw above. With the fix (a later local build) he heard the music.
-  Whether it is clean (no crackle) is still to be confirmed.
+  wake-up flaw above. With the fix (a later local build) he heard the music,
+  clean and at a good level.
 - Not run on the CI build: the Start at power-on restart test.
 
 ## Before release (for Mitchell)
 
-1. On red, with the volume up: turn on Settings > Display & sound > Home
-   music and listen on the Home tab for static or crackle.
+1. Nothing left to check by ear: Home music and UI sounds are confirmed.
 2. Optional: try Start at power-on on a Vita without Codex's autostart, to
    see VitaOS stay on screen after power-on.
 3. Push the branch and let CI build it. CI now checks that the player module
