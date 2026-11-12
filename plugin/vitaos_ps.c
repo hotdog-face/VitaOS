@@ -22,7 +22,9 @@
  * 1.3 (2026-09-27): and the Vita starts in VitaOS (see boot_start).
  *
  * 1.4 (2026-11): PS keeps working when another plugin rewrites controller
- * timestamps; VitaOS 1.9 installs and updates this file from Settings. */
+ * timestamps; VitaOS 1.9 installs and updates this file from Settings.
+ *
+ * 1.5 (2026-11): a short log of what happened at power-on (boot_log). */
 #include <taihen.h>
 #include <psp2/ctrl.h>
 #include <psp2/appmgr.h>
@@ -211,15 +213,38 @@ static int any_app_running(void) {
     return vitaos_running() || running_game(t, &p, &h);
 }
 
+/* 1.5: what happened at power-on, in ux0:data/arcadehub/boot.log (the last
+ * boot only, a few short lines with seconds since the system started). When
+ * "it did not open at power-on" is reported, this says why: switched off,
+ * something else already running, or the launches not taking. */
+#define BOOT_LOG "ux0:data/arcadehub/boot.log"
+static void boot_log(const char *what, const char *tid, int v, int fresh) {
+    char line[96];
+    int n = sceClibSnprintf(line, sizeof(line), "%3u s  %s %s %08X\n",
+                            (unsigned int)(sceKernelGetSystemTimeWide() / 1000000ull), what, tid ? tid : "-", v);
+    SceUID fd = sceIoOpen(BOOT_LOG, SCE_O_WRONLY | SCE_O_CREAT | (fresh ? SCE_O_TRUNC : SCE_O_APPEND), 0666);
+    if (fd >= 0) { sceIoWrite(fd, line, n); sceIoClose(fd); }
+}
+
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
+    boot_log("plugin 1.5 loaded", 0, 0, 1);
     sceKernelDelayThread(15 * 1000 * 1000);
     for (int attempt = 0; attempt < 12 && running; ++attempt) {
-        if (file_exists(BOOT_OFF) || any_app_running() || bridge_loaded()) break;   /* the agent bridge has its own */
+        char t[16] = "";
+        SceUID p = -1;
+        int h_up = 0;
+        if (file_exists(BOOT_OFF)) { boot_log("off in Settings", 0, attempt, 0); break; }
+        if (vitaos_running()) { boot_log("VitaOS already running", 0, attempt, 0); break; }
+        if (running_game(t, &p, &h_up)) { boot_log("another app is running:", t, attempt, 0); break; }
+        if (bridge_loaded()) { boot_log("agent bridge loaded: it opens Home itself", 0, attempt, 0); break; }
         const char *h = home_tid();
-        if (!h) break;
+        if (!h) { boot_log("VitaOS is not installed", 0, attempt, 0); break; }
+        boot_log("launching", h, attempt, 0);
         launch_home(h);
-        if (vitaos_running()) break;
+        if (vitaos_running()) { boot_log("VitaOS is up:", app_running("VITAOS001") ? "VITAOS001" : "MVZA00010", attempt, 0); break; }
+        if (running_game(t, &p, &h_up)) boot_log("launch did not take; now running:", t, attempt, 0);
+        else boot_log("launch did not take (lock screen?)", 0, attempt, 0);
         sceKernelDelayThread(10 * 1000 * 1000);
     }
     return sceKernelExitDeleteThread(0);
@@ -230,7 +255,7 @@ int module_start(SceSize args, void *argp) {
     (void)args; (void)argp;
     thread = sceKernelCreateThread("vitaos_ps", watch, 0x10000100, 0x2000, 0, 0, NULL);
     if (thread >= 0) sceKernelStartThread(thread, 0, NULL);
-    boot_thread = sceKernelCreateThread("vitaos_boot", boot_start, 0x10000100, 0x2000, 0, 0, NULL);
+    boot_thread = sceKernelCreateThread("vitaos_boot", boot_start, 0x10000100, 0x4000, 0, 0, NULL);
     if (boot_thread >= 0) sceKernelStartThread(boot_thread, 0, NULL);
     return SCE_KERNEL_START_SUCCESS;
 }
