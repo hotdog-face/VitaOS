@@ -121,12 +121,6 @@ void video_collect(void) {
     sceKernelSignalSema(defer_lock, 1);
 }
 
-/* user/mp4fix.off: VitaOS never rewrites a media file. */
-int video_fix_off(void) {
-    SceIoStat st;
-    return sceIoGetstat("ux0:data/arcadehub/user/mp4fix.off", &st) >= 0;
-}
-
 static int is_error(SceAvPlayerHandle h) {
     unsigned int raw = (unsigned int)h;
     return raw == 0 || (raw & 0xFFFF0000u) == 0x806A0000u;
@@ -265,16 +259,11 @@ static int opener(SceSize args, void *argp) {
         sceKernelSignalSema(open_lock, 1);
         if (!want) continue;
         wait_closed();                               /* one decoder at a time */
-        /* Songs copied over by hand often have their index at the end, or
-         * cover art as a still-picture track: rearrange the file once, without
-         * losing anything (mp4fix.c), then play it. Films are never rewritten
-         * from here: they are big, and Movies asks first (movies.c). */
-        if (who == OWN_MUSIC && !video_fix_off() && mp4fix_check(path, MP4FIX_SONG) > 0) {
-            ui_toast("Getting this song ready to play\xE2\x80\xA6", C_ACCENT);
-            int fx = mp4fix_fix(path, MP4FIX_SONG, NULL);
-            alog("mp4fix %d (owner %d) %d\n", fx, who, 0);
-            if (fx == MP4FIX_FAILED) ui_toast("Could not get it ready: is the card full?", C_BAD);
-        }
+        /* No file is ever rewritten to make it play. Tested on a PCH-2000
+         * (2026-11-11) with the fix switched off: songs with the index at the
+         * end, with cover art as a JPEG track (enabled or not) and with a
+         * chapter track, and a film with the index at the end, all play as
+         * they are. 1.8.4's "would not play" was the missing player module. */
         SceAvPlayerHandle h = 0;
         int ok = video_init() >= 0;
         if (ok) {

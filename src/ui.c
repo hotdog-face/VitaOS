@@ -1621,35 +1621,6 @@ void ui_message(const char *title, const char *body) {
     resume_frame(was);
 }
 
-/* A card with a progress bar for work running on another thread. Returns
- * once *finished is set. O asks the worker to stop (*cancel = 1) and the card
- * says so until the worker has wound down; returns 1 if it was cancelled. */
-int ui_progress(const char *title, const char *body, const volatile unsigned long long *done,
-                const volatile unsigned long long *total, const volatile int *finished, volatile int *cancel) {
-    int was = suspend_frame();
-    Input in;
-    memset(&in, 0, sizeof(in));
-    int asked = 0;
-    for (int f = 0; !*finished; ++f) {
-        ui_read_input(&in);
-        if (f > 2 && cancel && !asked && (in.pressed & SCE_CTRL_CIRCLE)) { *cancel = 1; asked = 1; }
-        int x, y;
-        card(640, 300, title, &x, &y);
-        body_text(x + 28, y + 90, 584, asked ? "Stopping\xE2\x80\xA6 the file is left as it was." : body);
-        float frac = *total ? (float)((double)*done / (double)*total) : 0;
-        if (frac > 1) frac = 1;
-        draw_round_rect(x + 28, y + 206, 584, 10, 5, RGBA8(255, 255, 255, 30));
-        if (frac > 0.005f) draw_round_rect(x + 28, y + 206, 584 * frac, 10, 5, C_ACCENT);
-        char pct[48];
-        snprintf(pct, sizeof(pct), "%d%%   %llu / %llu MB", (int)(frac * 100), *done >> 20, *total >> 20);
-        text(font, x + 28, y + 250, C_DIM, 15, pct);
-        if (cancel && !asked) glyph_button(x + 640 - 28 - 130, y + 232, 130, "O Stop", 0, NULL);
-        end_frame();
-    }
-    resume_frame(was);
-    return asked;
-}
-
 int ui_menu(const char *title, const char *const items[], int n) {
     int was = suspend_frame();
     int r = menu_impl(title, items, n);

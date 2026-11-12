@@ -9,22 +9,10 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
   left out of every published package from 1.0.0 to 1.8.4, so playback only
   ever worked on the developer's own consoles. It is now part of the package,
   and the build refuses to publish without it. (#8, #15)
-- Songs copied over by hand often have their index at the end of the file,
-  or cover art stored as a picture track. The Vita's player refuses those, so
-  VitaOS now fixes them once, without re-encoding, the first time you play
-  them. Nothing is lost:
-  - moving the index only reorders the file;
-  - only a still-picture (JPEG/PNG) cover track is ever left out, and then
-    the untouched original is kept beside the song as `<name>.orig`;
-  - chapters, text and subtitle tracks (audiobooks, podcasts) stay.
-- Films are never rewritten without asking. When a film has its index at the
-  end, Movies offers to fix it and says how big the rewrite is. It shows a
-  progress bar, and O stops it with the film untouched. "Play it as it is"
-  is always there.
-- If VitaOS is closed or loses power in the middle of a fix, the next start
-  cleans up and puts the original back.
-- Creating the empty file `ux0:data/arcadehub/user/mp4fix.off` turns all
-  file fixing off.
+- VitaOS never rewrites your songs or films. A test on a real Vita showed
+  the player takes hand-copied files as they are: index at the end, cover
+  art stored as a picture track, chapter tracks (audiobooks). So the missing
+  module was the whole problem, and no file "fixing" ships in 1.9.0.
 - Apple Lossless and other formats VitaOS can't play now get a message
   saying what to convert them to, instead of "That file would not play".
 - Home music and UI sounds no longer crackle or turn to static. (#24)
@@ -84,30 +72,35 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
 
 Screenshots are in `docs/screenshots-1.9.0-red/`.
 
-- Installed over the older VitaOS on red (an Oct 1 build; backup kept), then rolled back and
-  reinstalled with the new MCP install tool.
+- Installed over the older VitaOS on red (an Oct 1 build; backup kept),
+  rolled back and reinstalled several times with the MCP install tool.
 - Home, Play (118 Vita and 7 PSP games), Music (2,106 songs), Apps and
   Settings all open and draw correctly. Japanese song titles render.
-- **A hand-made m4a with its index at the end and a cover-art video track:**
-  VitaOS said "Getting this song ready to play…", rearranged the file (index
-  first, one track; checked by pulling it back to the Mac) and played it.
-  The next song (index at the end only) went the same way.
+- **Songs play as they are.** Four hand-made test songs played with nothing
+  rewritten (each was byte-identical on the card afterwards): index at the
+  end; cover art as a JPEG track; the same track disabled; a chapter track.
+- **A film plays:** an H.264 960x544 `.mp4` with its index at the end played
+  full screen, and as the dimmed preview behind the posters.
+- **Play's screensaver reel** started after 30 s idle and played a game's
+  preview video. This is the code that crashed in two of the #12 dumps.
+- Music opens in about 3 s with 2,106 songs.
 - Settings > VitaOS shows "Start at power-on: Set up", which is correct:
   red's `ur0:tai/config.txt` has no VitaOS line. The set-up flow itself
   was **not** run, because it edits red's tai config and needs Mitchell's OK.
-- The crash-report card was not triggered (red has crash reports turned off
-  and had no new VitaOS crash). The dump reader was checked against the
-  three dumps from #12 on the Mac.
-- Not yet checked on hardware: an `.mp4` film, the static fix for Home music
-  (red's volume was 0), icons that used to be blank, and DS/Dreamcast games.
+  Its config editing is covered by 22 checks on the Mac, including failed
+  renames and power loss mid-change.
+- **Not verified:** the Home-music static fix. It needs someone to listen;
+  a screenshot can't show it, and red's volume is at 0.
+- Also not checked on hardware: the crash-report card (red has crash reports
+  turned off), icons that used to be blank, and DS/Dreamcast games.
 
 ## Before release (for Mitchell)
 
-1. Install this build on a test Vita (red) and check:
-   - an `.mp4` film plays;
-   - Play previews play;
-   - Settings > VitaOS > Start at power-on, then restart: VitaOS opens;
-   - Remove the plugin, then restart: the Vita starts normally.
-2. Push the branch and let CI build it. CI now checks that the player module
+1. On red, with the volume up: turn on Settings > Display & sound > Home
+   music and listen on the Home tab for static or crackle.
+2. With Mitchell's OK: Settings > VitaOS > Start at power-on, then restart
+   (VitaOS should open); then Remove the plugin and restart (the Vita should
+   start normally).
+3. Push the branch and let CI build it. CI now checks that the player module
    and the plugin are inside the package.
-3. Tag `v1.9.0` to publish.
+4. Tag `v1.9.0` to publish.

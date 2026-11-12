@@ -1,27 +1,26 @@
-/* mp4fix: make an .m4a/.mp4 playable by SceAvPlayer, without losing anything
- * (2026-11).
+/* mp4fix: reading MP4 files, and (for tools only) rearranging them.
  *
- * VitaOS's own music import writes files with the index (the "moov" box)
- * first and only the audio track, and those play. Songs people copy over
- * themselves usually have the index at the end (most converters and phones
- * write it last), and files converted from MP3 often carry the cover picture
- * as a second, "video" track.
+ * In VitaOS itself only mp4fix_sound_codec() is used: when a song or film
+ * will not play, it says whether the sound is in a format the Vita has no
+ * decoder for (Apple Lossless, say), so the message can say what to convert.
  *
- * What this does, and what it never does:
+ * The rest is compiled only with -DMP4FIX_REWRITE and is NOT part of VitaOS.
+ * It was written for 1.9.0 on the theory that the Vita's player refuses
+ * files with the index ("moov") at the end or cover art as a picture track.
+ * A test on a PCH-2000 with the rewrite switched off (2026-11-11) showed the
+ * player takes all of those as they are, so VitaOS never rewrites anyone's
+ * files. The code stays, tested (tools/test_mp4fix.sh), in case a real file
+ * turns up that needs it. What it does then:
  *  - Moving the index to the front reorders the file and patches the chunk
- *    offsets. Every track, tag and byte of media is kept: it is what
- *    `ffmpeg -c copy -movflags +faststart` does.
- *  - For songs only (MP4FIX_SONG), a track is left out only when it is a
- *    still picture: a video track whose codec is JPEG or PNG. Chapter, text
- *    and subtitle tracks (audiobooks, podcasts) and real video are kept.
- *    When a track is left out, the untouched original stays beside the file
- *    as "<name>.orig", so nothing is ever destroyed.
+ *    offsets. Every track, tag and byte of media is kept.
+ *  - For songs (MP4FIX_SONG), a track is left out only when it is a still
+ *    picture (a video track with a JPEG or PNG codec); the untouched
+ *    original then stays as "<name>.orig". Chapter, text and subtitle tracks
+ *    and real video are kept.
  *  - The new file is written as "<name>.part" and takes the real name only
- *    when complete; mp4fix_sweep() tidies up after a crash or power loss in
- *    the middle (leftover .part files, an .orig whose file is missing).
+ *    when complete; mp4fix_recover() tidies up after an interruption.
  *
- * Plain stdio, so it builds and is tested on a computer too
- * (tools/test_mp4fix.sh). */
+ * Plain stdio, so it builds and is tested on a computer. */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,6 +116,7 @@ static int find_stsd(unsigned char *box, uint64_t size, void *ctx) {
     return 0;
 }
 
+#ifdef MP4FIX_REWRITE
 /* For an "mp4v" entry, the kind of picture inside (its esds object type):
  * 0x6C JPEG, 0x6D PNG, 0x20 real MPEG-4 video. 0 if it cannot be read. */
 typedef struct { unsigned char *entry; uint64_t len; } Entry;
@@ -181,6 +181,8 @@ static int is_picture_track(unsigned char *trak, uint64_t size) {
            !memcmp(codec, "png ", 4) || !memcmp(codec, "MJPG", 4);
 }
 
+#endif
+
 static int is_sound_track(unsigned char *trak, uint64_t size) {
     char hd[5] = {0};
     unsigned h = header_len(trak);
@@ -188,6 +190,7 @@ static int is_sound_track(unsigned char *trak, uint64_t size) {
     return !memcmp(hd, "soun", 4);
 }
 
+#ifdef MP4FIX_REWRITE
 typedef struct { const Box *b; int n; int overflow; } Patch;
 
 static uint64_t moved(const Patch *p, uint64_t off) {
@@ -221,6 +224,8 @@ static int patch_offsets(unsigned char *box, uint64_t size, void *ctx) {
     return 0;
 }
 
+#endif
+
 /* What needs doing: MP4FIX_INDEX_LAST and/or MP4FIX_EXTRA_TRACKS, 0 if
  * nothing, < 0 if this is not an MP4 we understand. The index is only read
  * into memory when tracks have to be looked at (songs) or changed. */
@@ -243,7 +248,9 @@ static int examine(FILE *f, Box *b, int *nb, unsigned char **moov_out, int song)
             if (size < 8 || at + size > b[moov].size) break;
             if (!memcmp(m + at + 4, "trak", 4)) {
                 if (is_sound_track(m + at, size)) sound++;
+#ifdef MP4FIX_REWRITE
                 else if (is_picture_track(m + at, size)) pictures++;
+#endif
             }
             at += size;
         }
@@ -253,6 +260,7 @@ static int examine(FILE *f, Box *b, int *nb, unsigned char **moov_out, int song)
     return need;
 }
 
+#ifdef MP4FIX_REWRITE
 int mp4fix_check(const char *path, int flags) {
     FILE *f = fopen(path, "rb");
     if (!f) return MP4FIX_NOT_MP4;
@@ -287,7 +295,58 @@ static int copy_range(FILE *in, FILE *out, uint64_t at, uint64_t len, Mp4fixJob 
     return rc;
 }
 
+/* The journal: one small file naming the file being fixed, written before
+ * anything is created and removed when the fix has finished either way.
+ * mp4fix_recover() reads it at the next start, so recovery after a crash or
+ * power loss looks at exactly one file instead of walking the whole card
+ * (a walk of 900 album folders held Music on "Loading" for 20 s). */
+static char journal[200];
+void mp4fix_set_journal(const char *file) { snprintf(journal, sizeof(journal), "%s", file ? file : ""); }
+
+static void journal_write(const char *path) {
+    if (!journal[0]) return;
+    FILE *j = fopen(journal, "wb");
+    if (j) { fputs(path, j); fclose(j); }
+}
+
+static void journal_clear(void) { if (journal[0]) remove(journal); }
+
+static int recover_one(const char *path) {
+    char part[600], old[600];
+    struct stat st;
+    snprintf(part, sizeof(part), "%s.part", path);
+    snprintf(old, sizeof(old), "%s.orig", path);
+    int back = 0;
+    if (stat(path, &st) && !stat(old, &st)) back = rename(old, path) == 0;   /* stopped between the two renames */
+    remove(part);                                                            /* never complete if we are here */
+    return back;
+}
+
+int mp4fix_recover(void) {
+    if (!journal[0]) return 0;
+    FILE *j = fopen(journal, "rb");
+    if (!j) return 0;
+    char path[520] = "";
+    size_t n = fread(path, 1, sizeof(path) - 1, j);
+    fclose(j);
+    path[n] = 0;
+    int back = path[0] ? recover_one(path) : 0;
+    journal_clear();
+    return back;
+}
+
+static int fix_impl(const char *path, int flags, Mp4fixJob *job);
+
 int mp4fix_fix(const char *path, int flags, Mp4fixJob *job) {
+    int need = mp4fix_check(path, flags);
+    if (need <= 0) return need;
+    journal_write(path);
+    int rc = fix_impl(path, flags, job);
+    journal_clear();
+    return rc;
+}
+
+static int fix_impl(const char *path, int flags, Mp4fixJob *job) {
     FILE *f = fopen(path, "rb");
     if (!f) return MP4FIX_NOT_MP4;
     Box b[MAX_BOXES];
@@ -347,7 +406,7 @@ int mp4fix_fix(const char *path, int flags, Mp4fixJob *job) {
     free(m);
     if (bad) { remove(part); return bad == -2 ? MP4FIX_CANCELLED : MP4FIX_FAILED; }
     /* Swap. The original keeps existing under one name or the other at every
-     * step; mp4fix_sweep() puts it back if this is interrupted. */
+     * step; mp4fix_recover() puts it back if this is interrupted. */
     struct stat st;
     int have_orig = stat(old, &st) == 0;                 /* an earlier original: that one is the true one */
     if (have_orig) {
@@ -364,7 +423,8 @@ int mp4fix_fix(const char *path, int flags, Mp4fixJob *job) {
     return need;
 }
 
-/* After a crash or power loss mid-fix: under `dir` (and its folders, a few
+/* The same tidy-up for a whole folder (not used at start: too slow on a big
+ * library; kept for tools and tests). Under `dir` (and its folders, a few
  * levels down), delete half-written "<media>.part" files and give back the
  * name of any "<media>.orig" whose file is missing. Returns how many files
  * it put back. Never touches a pair that is complete. */
@@ -385,11 +445,21 @@ int mp4fix_sweep(const char *dir, int depth) {
     while ((e = readdir(d))) {
         if (e->d_name[0] == '.') continue;
         char path[600], real[600];
-        snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
-        struct stat st;
-        if (stat(path, &st)) continue;
-        if (S_ISDIR(st.st_mode)) { if (depth > 0) restored += mp4fix_sweep(path, depth - 1); continue; }
         size_t len = strlen(e->d_name);
+        struct stat st;
+        /* By name first: a stat for each of a few thousand songs held Music
+         * on "Loading" for 20 s. The Vita's readdir already says what is a
+         * folder; elsewhere, only names without a dot are worth a stat. */
+        int tail = len > 5 && (!strcmp(e->d_name + len - 5, ".part") || !strcmp(e->d_name + len - 5, ".orig"));
+#ifdef __vita__
+        int is_dir = SCE_S_ISDIR(e->d_stat.st_mode);
+#else
+        int is_dir = 0;
+        if (!tail) { snprintf(path, sizeof(path), "%s/%s", dir, e->d_name); is_dir = stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
+#endif
+        if (!is_dir && !tail) continue;
+        snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
+        if (is_dir) { if (depth > 0) restored += mp4fix_sweep(path, depth - 1); continue; }
         if (len > 5 && !strcmp(e->d_name + len - 5, ".part") && media_name(e->d_name, len - 5)) {
             remove(path);
         } else if (len > 5 && !strcmp(e->d_name + len - 5, ".orig") && media_name(e->d_name, len - 5)) {
@@ -400,6 +470,8 @@ int mp4fix_sweep(const char *dir, int depth) {
     closedir(d);
     return restored;
 }
+
+#endif   /* MP4FIX_REWRITE */
 
 /* The first sound track's codec, from its stsd entry ("mp4a", "alac", ...). */
 int mp4fix_sound_codec(const char *path, char out[5]) {

@@ -27,7 +27,6 @@
 #include "ssl_locks.h"
 #include "threads.h"
 #include "sysint.h"
-#include "mp4fix.h"
 #include "ui.h"
 #include "play.h"
 #include "apps.h"
@@ -355,15 +354,6 @@ static void splash(float t, float out) {
 /* The lists behind Movies, Music and Apps, read once in the background. */
 static int prewarm(SceSize args, void *argp) {
     (void)args; (void)argp;
-    /* A song or film fix that a crash or power loss interrupted (mp4fix.c):
-     * before either library is read. */
-    {
-        static const char *const media[] = {"ux0:data/music", "ux0:video", "uma0:video", "imc0:video", "ux0:Videos",
-                                            "ux0:Movies", "ux0:movies", "ux0:data/video", "ux0:data/movies"};
-        int back = 0;
-        for (unsigned int i = 0; i < sizeof(media) / sizeof(media[0]); ++i) back += mp4fix_sweep(media[i], 3);
-        if (back) home_log("mp4fix sweep: %d file(s) put back %d\n", back, 0);
-    }
     movies_prewarm();
     music_prewarm();
     apps_prewarm();

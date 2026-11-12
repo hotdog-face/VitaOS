@@ -107,9 +107,8 @@ favourites stay.
   it with your phone to open a bug report that is already filled in. If you
   can, attach the crash file it names (in `ux0:data`).
 - **A song or film won't play:** VitaOS plays AAC `.m4a` songs and H.264
-  `.mp4` films up to 960x544. It fixes the common problems in those files by
-  itself the first time you play them. Apple Lossless and other formats need
-  converting to AAC first.
+  `.mp4` films up to 960x544, as they are (it never changes your files).
+  Apple Lossless and other formats need converting to AAC first.
 - **A game shows up in Apps instead of Play** (or the other way round):
   Triangle on it in Apps > **Show in Play**, or START on it in Play > **Move
   it to Apps**.
@@ -146,8 +145,8 @@ make
 
 Build `plugin/` first and copy `vitaos_ps.suprx` to `assets/plugin/` (VitaOS
 ships it), and `updater/` for `assets/updater.vpk`; `.github/workflows/build.yml`
-does all three in order. Tests that run on a computer: `tools/test_mp4fix.sh`
-and `tools/test_sysint.sh`. Crash dumps: `tools/crashdump.py`.
+does all three in order. Tests that run on a computer: `tools/test_sysint.sh`
+(and `tools/test_mp4fix.sh` for the MP4 tool code, which VitaOS doesn't ship). Crash dumps: `tools/crashdump.py`.
 
 ## Credits
 

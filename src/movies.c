@@ -14,7 +14,6 @@
 #include <math.h>
 
 #include "movies.h"
-#include "mp4fix.h"
 #include "settings.h"
 #include "search.h"
 #include "video.h"
@@ -112,55 +111,8 @@ static void clock_str(unsigned int ms, char *out, int max) {
  * half a second: say why. */
 static unsigned int open_frames, furthest_ms;
 
-/* A film whose index is at the end of the file: offer to move it to the
- * front (the film itself is only reordered). Never without asking, since the
- * whole file is rewritten and that takes minutes and as much free space
- * again; with a progress bar, and O stops it with the file untouched.
- * Returns 0 to go on and play, -1 to stay where we are. */
-static Mp4fixJob fix_job;
-static volatile int fix_finished, fix_result;
-static char fix_path[300];
-static int fix_thread(SceSize args, void *argp) {
-    (void)args; (void)argp;
-    fix_result = mp4fix_fix(fix_path, 0, &fix_job);
-    fix_finished = 1;
-    return sceKernelExitDeleteThread(0);
-}
-
-static int offer_fix(const Movie *m) {
-    static char declined[300];                       /* asked once per film per run */
-    if (video_fix_off() || !strcmp(declined, m->path) || mp4fix_check(m->path, 0) <= 0) return 0;
-    long long mb = mp4fix_size(m->path) >> 20;
-    char msg[400];
-    snprintf(msg, sizeof(msg), "This film keeps its index at the end of the file, which the Vita's player often refuses.\n"
-                               "VitaOS can move it to the front: the film is rewritten once (%lld MB, and that much free space), nothing in it changes.", mb);
-    static const char *const items[] = {"Fix it, then play", "Play it as it is", "Not now"};
-    video_stop_owned(OWN_MOVIE);                     /* the preview holds the file open */
-    previewing[0] = 0;
-    int k = ui_menu(m->title, items, 3);
-    (void)msg;
-    if (k < 0 || k == 2) return -1;
-    if (k == 1) { snprintf(declined, sizeof(declined), "%s", m->path); return 0; }
-    if (!ui_confirm("Fix this film", msg)) return -1;
-    memset(&fix_job, 0, sizeof(fix_job));
-    fix_finished = 0;
-    snprintf(fix_path, sizeof(fix_path), "%s", m->path);
-    SceUID t = sceKernelCreateThread("film_fix", fix_thread, 0x10000110, 0x8000, 0, 0, NULL);
-    if (t < 0 || sceKernelStartThread(t, 0, NULL) < 0) { ui_message("Fix this film", "Could not start."); return -1; }
-    ui_progress("Fixing this film", "Moving the index to the front. O stops it and leaves the film as it was.",
-                &fix_job.done, &fix_job.total, &fix_finished, &fix_job.cancel);
-    if (fix_result == MP4FIX_CANCELLED) return -1;
-    if (fix_result < 0) {
-        ui_message("Fix this film", "It could not be rewritten, most likely because the card does not have enough free space. "
-                                    "The film was left as it was.");
-        return -1;
-    }
-    return 0;
-}
-
 static void open_player(void) {
     Movie *m = &movies[sel];
-    if (offer_fix(m) < 0) return;
     previewing[0] = 0;
     /* Back up a few seconds so you know where you are. */
     unsigned int from = m->resume_ms > 5000 ? m->resume_ms - 5000 : 0;

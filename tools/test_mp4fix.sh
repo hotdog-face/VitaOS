@@ -1,6 +1,7 @@
 #!/bin/sh
-# Builds src/mp4fix.c for this computer and checks it against files made with
-# ffmpeg. After a fix the sound must decode to exactly the same samples, the
+# Builds src/mp4fix.c's rewrite code (-DMP4FIX_REWRITE: not part of VitaOS,
+# which never rewrites files) for this computer and checks it against files
+# made with ffmpeg. After a fix the sound must decode to exactly the same samples, the
 # index must come first, and nothing may be lost:
 #   - index last: every track and tag kept, no .orig left behind;
 #   - cover art as a JPEG "video" track: that track only is left out, and the
@@ -8,7 +9,7 @@
 #   - chapters (a text track, as in audiobooks): kept;
 #   - a film (flags 0): only reordered, video kept;
 #   - cancel: the original is untouched;
-#   - sweep: leftovers of an interrupted fix are tidied, originals put back.
+#   - journal and sweep: leftovers of an interrupted fix are tidied, originals put back.
 # Needs ffmpeg/ffprobe and a C compiler.
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -21,6 +22,8 @@ cat > "$work/main.c" <<'C'
 #include "mp4fix.h"
 int main(int c, char **v) {
     if (!strcmp(v[1], "sweep")) { printf("%d\n", mp4fix_sweep(v[2], 3)); return 0; }
+    mp4fix_set_journal("journal.txt");
+    if (!strcmp(v[1], "recover")) { printf("%d\n", mp4fix_recover()); return 0; }
     int flags = atoi(v[1]);
     Mp4fixJob job = {0};
     if (c > 3) job.cancel = 1;
@@ -29,7 +32,7 @@ int main(int c, char **v) {
     return 0;
 }
 C
-cc -Wall -O2 -I"$here/src" -o "$work/fix" "$work/main.c" "$here/src/mp4fix.c"
+cc -Wall -O2 -DMP4FIX_REWRITE -I"$here/src" -o "$work/fix" "$work/main.c" "$here/src/mp4fix.c"
 cd "$work"
 q="ffmpeg -v error -y"
 $q -f lavfi -i "sine=frequency=440:duration=8" -c:a aac -b:a 192k -ar 44100 last.m4a
@@ -79,4 +82,13 @@ echo keep > sw/notes.part                                            # not media
 n=$(./fix sweep sw)
 if [ "$n" = 1 ] && cmp -s sw/album/a.m4a c0.m4a && [ ! -e sw/album/a.m4a.orig ] && [ ! -e sw/album/a.m4a.part ] \
    && [ ! -e sw/b.m4a.part ] && [ -e sw/c.m4a.orig ] && [ -e sw/notes.part ]; then echo "sweep after a crash                ok"; else echo "sweep after a crash                FAIL ($n)"; fail=1; fi
+# journal: what start-up recovery does, for the one file named in it
+cp c0.m4a j.m4a.orig; echo junk > j.m4a.part; printf '%s' "j.m4a" > journal.txt          # stopped between the renames
+n=$(./fix recover)
+if [ "$n" = 1 ] && cmp -s j.m4a c0.m4a && [ ! -e j.m4a.part ] && [ ! -e j.m4a.orig ] && [ ! -e journal.txt ]; then echo "journal: original put back         ok"; else echo "journal: original put back         FAIL ($n)"; fail=1; fi
+cp c0.m4a k.m4a; echo junk > k.m4a.part; printf '%s' "k.m4a" > journal.txt             # stopped while writing
+n=$(./fix recover)
+if [ "$n" = 0 ] && cmp -s k.m4a c0.m4a && [ ! -e k.m4a.part ] && [ ! -e journal.txt ]; then echo "journal: half-written copy removed ok"; else echo "journal: half-written copy removed FAIL"; fail=1; fi
+[ "$(./fix recover)" = 0 ] && [ ! -e journal.txt ] && echo "journal: nothing pending           ok" || { echo "journal: nothing pending           FAIL"; fail=1; }
+ls *.txt | grep -q journal && { echo "journal left behind after fixes    FAIL"; fail=1; } || echo "journal cleared after every fix    ok"
 [ $fail = 0 ] && echo PASS || { echo FAIL; exit 1; }

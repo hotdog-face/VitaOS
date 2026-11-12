@@ -20,6 +20,4 @@ int video_paused(void);
 void video_seek(unsigned int ms);
 unsigned int video_pos_ms(void);
 unsigned int video_duration_ms(void);
-int video_fix_off(void);   /* user/mp4fix.off exists: never rewrite media files */
-
 #endif

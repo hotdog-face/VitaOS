@@ -14,10 +14,14 @@
 /* Progress and cancel for a long rewrite (a film); may be NULL. */
 typedef struct { volatile int cancel; volatile unsigned long long done, total; } Mp4fixJob;
 
+int mp4fix_sound_codec(const char *path, char out[5]);   /* "mp4a", "alac", ... ; < 0 if unknown */
+
+/* Everything below: only with -DMP4FIX_REWRITE (tools and tests; not in VitaOS). */
 int mp4fix_check(const char *path, int flags);
 int mp4fix_fix(const char *path, int flags, Mp4fixJob *job);   /* blocking: call off the main thread */
 long long mp4fix_size(const char *path);
-int mp4fix_sound_codec(const char *path, char out[5]);   /* "mp4a", "alac", ... ; < 0 if unknown */
-int mp4fix_sweep(const char *dir, int depth);            /* after a crash mid-fix; returns files put back */
+void mp4fix_set_journal(const char *file);               /* where the file being fixed is noted */
+int mp4fix_recover(void);                                /* at start: undo a fix a crash interrupted; files put back */
+int mp4fix_sweep(const char *dir, int depth);            /* the same for a whole folder (slow) */
 
 #endif
