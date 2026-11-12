@@ -100,11 +100,22 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
   translated dialogs were checked by measuring every language with the real
   fonts (all fit); they weren't opened on the console.
 - Music opens in about 3 s with 2,106 songs.
-- Settings > VitaOS shows "Start at power-on: Set up", which is correct:
-  red's `ur0:tai/config.txt` has no VitaOS line. The set-up flow itself
-  was **not** run, because it edits red's tai config and needs Mitchell's OK.
-  Its config editing is covered by 22 checks on the Mac, including failed
-  renames and power loss mid-change.
+- **Start at power-on, set-up and removal (with Mitchell's OK):**
+  - Set up from Settings added exactly one line under `*main` in
+    `ur0:tai/config.txt`. `config.txt.before-vitaos` was identical to the
+    original, the plugin file matched the package, and no temp files were left.
+  - Remove from the same row gave back a `config.txt` byte-identical to the
+    original.
+  - **The restart in between did not show VitaOS opening at power-on.** Red
+    went dark (black screen, PS light on, off the network) for 22 minutes
+    until a button press. It then came up in Codex's dev Home, which red's
+    own `agent_autostart.suprx` opens. There was no crash dump and no trace
+    of the public VitaOS starting. Red wrote nothing during those 22 minutes,
+    so the logs can't say whether the plugin, the competing autostart or
+    red's own restart behaviour was the cause.
+  - Still open: whether a restart leaves red dark without the plugin (a
+    control restart), and a power-on test on a Vita that doesn't have Codex's
+    autostart.
 - **Not verified:** the Home-music static fix. It needs someone to listen;
   a screenshot can't show it, and red's volume is at 0.
 - Also not checked on hardware: the crash-report card (red has crash reports
@@ -114,9 +125,9 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
 
 1. On red, with the volume up: turn on Settings > Display & sound > Home
    music and listen on the Home tab for static or crackle.
-2. With Mitchell's OK: Settings > VitaOS > Start at power-on, then restart
-   (VitaOS should open); then Remove the plugin and restart (the Vita should
-   start normally).
+2. Start at power-on is **not proven at power-on**. Before release, either
+   test it on a Vita without Codex's `agent_autostart.suprx`, or ship 1.9.0
+   with the Settings row saying it is new and how to undo it (hold L).
 3. Push the branch and let CI build it. CI now checks that the player module
    and the plugin are inside the package.
 4. Tag `v1.9.0` to publish.

@@ -402,6 +402,10 @@ static void plugin_action_do(void) {
 static void plugin_action(void) {
     plugin_action_do();
     plugin_dirty = 1;                                 /* read the state again, after whatever was done */
+    rsel = 0;                                         /* the rows change (one row or two): stay on Start at
+                                                       * power-on, not on whatever row slid into this place
+                                                       * (seen on red: Remove left the focus on "Update apps
+                                                       * automatically", one stray X from flipping it) */
 }
 
 static void build_rows(void) {
