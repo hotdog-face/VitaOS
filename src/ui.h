@@ -96,6 +96,8 @@ void ui_ambient(float strength);   /* PS5-style drifting glow, ribbons, motes */
 vita2d_texture *ui_image(const char *path);
 void ui_image_forget(const char *path);
 int ui_image_pending(const char *path);
+int ui_images_busy(void);                 /* pictures queued or being decoded right now */
+void ui_warm_start(void);                 /* queue the last run's first-screen pictures (ui_init calls it) */
 void draw_shimmer(float x, float y, float w, float h);
 void draw_gradient(float x, float y, float w, float h, unsigned int tl, unsigned int tr, unsigned int bl, unsigned int br);
 void draw_made_cover(const char *name, const char *sub, float x, float y, float s, int dim);

@@ -802,7 +802,8 @@ int main(void) {
     memset(&in, 0, sizeof(in));
     for (;;) {
         ++frame_no;
-        if (frame_no == 2 || frame_no == 3 || frame_no == 30) { start_mark(frame_no == 2 ? "first frame drawn" : frame_no == 3 ? "second frame" : "30 frames"); if (frame_no == 30) t_write(); }
+        if (frame_no == 2) start_mark("first frame drawn");
+        if (frame_no >= 4 && t_n < 32 && (!ui_images_busy() || frame_no == 900)) { start_mark(frame_no == 900 ? "pictures still loading after 900 frames" : "first screen's pictures all in"); t_write(); }
         if (frame_no % 60 == 0) tabs_build();         /* Settings may have hidden or shown one */
         {                                        /* frame timing, logged by the watchdog; at the top so */
             static SceUInt64 last;              /* early-out paths (search) are measured too */

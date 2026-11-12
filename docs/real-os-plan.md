@@ -252,6 +252,28 @@ after 3 s. One had been left open that way and kept VitaOS from coming back.
   clears the guard after 10 s. A restart inside those 10 s still trips it;
   deleting `ux0:data/arcadehub/boot.kloading` brings it back.
 
+**The first screen comes up whole (2026-11-13).** Mitchell described the
+start as Home appearing "with things slowly loading in".
+
+- `src/ui.c` writes the pictures asked for in a run's first four seconds to
+  `user/warm.txt` (28 at most) and queues them at the next start, right
+  after graphics start. The picture worker then decodes them while the fonts
+  and game lists load, instead of starting after the first frame.
+- `start.log` has a new last line: when no picture is queued or decoding any
+  more.
+- On red, warm start, Play as the last tab:
+
+  | | no list | with the list |
+  |---|---|---|
+  | first frame | 4.3 s | 4.5 s |
+  | first screen's pictures all in | 6.6 s | **4.5 s** |
+
+  So the first frame is already complete. It costs about 0.1 s on the first
+  frame.
+- Not measured: a cold start (the boot video hides that stretch anyway) and
+  Home as the last tab, whose news and weather tiles come from the network
+  and are not pictures on the card.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
