@@ -484,6 +484,16 @@ consoles now run the same thing, with no kernel module.
 - Testing note: blue's bridge answers slowly at times; a test script with
   short polls stalled past its time limit while blue itself was fine.
 
+**CI build check (2026-11-13).** `.github/workflows/experimental.yml` runs
+on pushes to this branch only: the config-editing tests, then the
+experimental package built from scratch in the pinned image, with checks
+that the package has no kernel module and that a normal build has none of
+the experimental parts. It uploads nothing and releases nothing. First run
+(43329819819): green. The plugin it built is byte-identical to the one
+running on red and blue (`80c9392052599090...`); the menu package and VitaOS
+package differ from the local ones, as zip archives built at another time do
+(the menu package is the same size).
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
