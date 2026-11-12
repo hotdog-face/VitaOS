@@ -4,6 +4,8 @@
 # that non-silent buffers reach the port without any UI sound being played:
 #   A. Home asks for the music from the first frame, before it has been made;
 #   B. Home asks only after it is ready (entering the tab later).
+# And it must be loud enough without clipping: the loudest moment of the loop
+# at 6/10 and 10/10, and with every UI sound played on top at 10/10.
 # The stand-in SignalSema hands the CPU to the woken thread first, as the
 # Vita does for the mixer (it has the higher priority): that is what made the
 # old order, signal first and set the flag after, lose the wake-up.
@@ -63,26 +65,49 @@ static inline int sceAudioOutOutput(int port, const void *buf) {
 }
 extern int fake_cfg_pos;
 static inline SceUID sceIoOpen(const char *p, int f, int m) { (void)p; (void)f; (void)m; fake_cfg_pos = 0; return 3; }
-static inline int sceIoRead(SceUID fd, void *b, int n) { (void)fd; const char *c = "0 6\n"; int l = 4; if (fake_cfg_pos) return 0; memcpy(b, c, l < n ? l : n); fake_cfg_pos = 1; return l; }
+extern const char *fake_cfg;
+static inline int sceIoRead(SceUID fd, void *b, int n) { (void)fd; int l = (int)strlen(fake_cfg); if (fake_cfg_pos) return 0; memcpy(b, fake_cfg, l < n ? l : n); fake_cfg_pos = 1; return l; }
 static inline int sceIoClose(SceUID fd) { (void)fd; return 0; }
 #endif
 H
 cat > "$work/main.c" <<'C'
 #include <stdio.h>
+#include <math.h>
 #include "vita.h"
 #include "sfx.h"
 FakeSema fake_semas[8]; int fake_nsema; volatile int fake_peak; int fake_cfg_pos;
+const char *fake_cfg = "0 6\n";
+static double dbfs(int peak) { return 20 * log10((peak ? peak : 1) / 32767.0); }
 int main(int c, char **v) {
-    int late = c > 1 && v[1][0] == 'B';
-    sfx_init();                       /* UI sounds 0 (so nothing else can wake the mixer), Home music 6 */
-    if (late) sleep(4);               /* B: the music is long since made when Home first asks */
-    for (int f = 0; f < 60 * 8 && fake_peak == 0; ++f) { sfx_ambient(1); usleep(16000); }
-    printf("%s  %s (peak %d)\n", late ? "B: asked once the music was ready " : "A: asked before the music was made", fake_peak ? "ok" : "FAIL: silent", fake_peak);
-    return fake_peak == 0;
+    char mode = c > 1 ? v[1][0] : 'A';
+    if (mode == 'A' || mode == 'B') {
+        sfx_init();                   /* UI sounds 0 (so nothing else can wake the mixer), Home music 6 */
+        if (mode == 'B') sleep(4);    /* B: the music is long since made when Home first asks */
+        for (int f = 0; f < 60 * 8 && fake_peak == 0; ++f) { sfx_ambient(1); usleep(16000); }
+        printf("%s  %s (peak %d)\n", mode == 'B' ? "B: asked once the music was ready " : "A: asked before the music was made", fake_peak ? "ok" : "FAIL: silent", fake_peak);
+        return fake_peak == 0;
+    }
+    /* Levels: the loudest moment of the whole 32 s loop (the stand-in port runs
+     * faster than real time), at 6/10 and 10/10, then with UI sounds on top. */
+    fake_cfg = mode == '6' ? "0 6\n" : "10 10\n";
+    sfx_init();
+    for (int f = 0; f < 60 * 14; ++f) {
+        sfx_ambient(1);
+        if (mode == 'X' && f > 120 && f % 6 == 0) sfx_play(f / 6 % SFX_COUNT);
+        usleep(16000);
+    }
+    double d = dbfs(fake_peak);
+    int ok = mode == '6' ? (d >= -12.5 && d <= -6) : mode == 'T' ? (d >= -9 && d <= -3) : fake_peak < 32000;
+    printf("%s %s (peak %d, %.1f dBFS)\n", mode == '6' ? "music at 6/10: -12 to -6 dBFS      " : mode == 'T' ? "music at 10/10: under -3 dBFS      "
+           : "10/10 with every UI sound: no clip ", ok ? "ok" : "FAIL", fake_peak, d);
+    return !ok;
 }
 C
 cc -O2 -w -I"$work" -o "$work/t" "$work/main.c" "$work/sfx.c" -lm -lpthread
 fail=0
 "$work/t" A || fail=1
 "$work/t" B || fail=1
+"$work/t" 6 || fail=1
+"$work/t" T || fail=1
+"$work/t" X || fail=1
 [ $fail = 0 ] && echo PASS || { echo FAIL; exit 1; }

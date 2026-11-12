@@ -135,6 +135,16 @@ static int make_bed(SceSize args, void *argp) {
         }
         b[i] = (short)(v * (0.35f + 0.65f * fade) * 0.33f * 32767);
     }
+    /* Bring the loop up to full scale (its loudest sample at 90%). It came out
+     * at about a third of that, and with the mixer's own factors the music
+     * peaked near -30 dBFS: barely audible with the Vita's volume all the way
+     * up (red, 2026-11-11: "its very quiet"). The level is set in the mixer. */
+    {
+        int peak = 1;
+        for (int i = 0; i < len; ++i) { int a = b[i] < 0 ? -b[i] : b[i]; if (a > peak) peak = a; }
+        float k = 0.9f * 32767.0f / peak;
+        for (int i = 0; i < len; ++i) b[i] = (short)(b[i] * k);
+    }
     bed = b;
     bed_ready = 1;
     /* Wake the mixer: Home may have asked for the music while this was still
@@ -160,12 +170,18 @@ static int mixer(SceSize args, void *argp) {
         flip ^= 1;
         sceKernelWaitSema(lock, 1, NULL);
         memset(out, 0, GRAIN * sizeof(short));
-        int gain = level * 26;                                  /* 0..260, /256 below */
-        float bed_to = bed_want && bed_ready ? ambient_level / 10.0f : 0;
+        /* Levels (2026-11): the music's loudest moments sit at 0.045 of full
+         * scale per step with the loop at 90%: about -11 dBFS at the usual
+         * 6/10 and -7 at 10/10. UI sounds get twice their old gain, so a
+         * tick still stands out over the music (they are bright, the chords
+         * are low). At 10/10 for both, music (0.45) plus the loudest UI sound
+         * (0.43) stays under full scale: nothing clips when they overlap. */
+        int gain = level * 50;                                  /* 0..500, /256 below */
+        float bed_to = bed_want && bed_ready ? ambient_level * 0.05f : 0;
         if (bed_ready && (bed_to > 0 || bed_gain > 0)) {
             for (int i = 0; i < GRAIN; ++i) {
                 bed_gain += (bed_to - bed_gain) * 0.00008f;       /* about a second */
-                out[i] = (short)(bed[bed_pos] * bed_gain * 0.5f);
+                out[i] = (short)(bed[bed_pos] * bed_gain);
                 bed_pos = (bed_pos + 1) % (RATE * BED_SEC);
             }
             if (bed_gain > 0.001f || bed_to > 0) busy = 1;
