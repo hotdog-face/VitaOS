@@ -357,21 +357,34 @@ static int chosen(const char *list, const char *tid) {
     return at && (at[10] == '\n' || at[10] == '\r');
 }
 
+/* The first 159 bytes, as ref_is compares them. */
+static unsigned int title_hash(const char *t) {
+    unsigned int h = 2166136261u;
+    for (int i = 0; i < (int)sizeof(((Ref *)0)->title) - 1 && t[i]; ++i) h = (h ^ (unsigned char)t[i]) * 16777619u;
+    return h;
+}
+
 static void apply_hidden(void) {
     /* An app the player put back with Show in Play is never hidden: 1.9.0's
      * first build hid a game when it was moved to Apps, and it then showed
      * in neither tab. Such entries are taken out of hidden.tsv here. */
     char *to_play = choice_list(USER "play-apps.txt");
     int healed = 0;
+    /* A hash of each title first: comparing every game with every hidden
+     * entry by string took half a second of every start on a big library. */
+    static unsigned int hh[MAX_HIDDEN];
+    for (int h = 0; h < nhidden; ++h) hh[h] = title_hash(hidden[h].title);
     for (int s = first_real; s < last_real; ++s) {
         System *sy = &systems[s];
         int w = 0;
         for (int i = 0; i < sy->count; ++i) {
             int drop = 0;
+            unsigned int gh = title_hash(sy->games[i].title);
             for (int h = 0; h < nhidden && !drop; ++h) {
-                if (!ref_is(&hidden[h], &sy->games[i])) continue;
+                if (hh[h] != gh || !ref_is(&hidden[h], &sy->games[i])) continue;
                 if (!strcmp(sy->games[i].kind, "app") && chosen(to_play, sy->games[i].a1)) {
                     memmove(&hidden[h], &hidden[h + 1], (nhidden - h - 1) * sizeof(Ref));
+                    memmove(&hh[h], &hh[h + 1], (nhidden - h - 1) * sizeof(hh[0]));
                     nhidden--; healed = 1;
                     break;
                 }
@@ -1056,8 +1069,10 @@ void play_init(void) {
     sceCommonDialogConfigParamInit(&cfg);
     sceCommonDialogSetConfigParam(&cfg);
     start_remote();
+    start_mark(" play: agent remote");
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
     load_catalog();
+    start_mark(" play: catalog");
     int test_sys = -1, test_index = -1;
     char test_id[32] = {0};
     {
@@ -1076,9 +1091,12 @@ void play_init(void) {
     last_real = nsys;                /* before apply_hidden, which walks the real systems */
     if (nsys <= VIRT) nsys = 0;
     else { load_names(); apply_names();
+           start_mark(" play: names");
            nhidden = load_refs(USER "hidden.tsv", hidden, MAX_HIDDEN); if (nhidden) apply_hidden();
            apply_choices();
-           build_colls(); setup_lists(); }
+           start_mark(" play: hidden, choices");
+           build_colls(); setup_lists();
+           start_mark(" play: shelves, lists"); }
     sys = first_real < last_real ? first_real : 0;      /* Play opens on the consoles */
     group = 0;
     sys_pos = ord_of(sys);

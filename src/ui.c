@@ -28,6 +28,9 @@ UiFont *font, *bold;
 static int in_frame;
 
 static unsigned int frames;
+#define WARM_FRAMES 240                  /* the first screen: see ui_warm_start */
+static int warm_done;
+static void warm_save(void);
 volatile const char *ui_where = "";
 volatile int ui_agent_active;
 static void free_evicted(void);
@@ -179,6 +182,7 @@ void ui_begin_frame(void) {
     vita2d_clear_screen();
     in_frame = 1;
     ++frames;
+    if (frames == WARM_FRAMES && !warm_done) warm_save();
     for (int k = 0; k < 3; ++k) acc[k] += (acc_to[k] - acc[k]) * 0.08f;   /* ~0.5 s to settle */
     ui_accent = RGBA8((int)acc[0], (int)acc[1], (int)acc[2], 255);
 }
@@ -345,8 +349,54 @@ static int img_worker(SceSize args, void *argp) {
     return 0;
 }
 
+/* ---------- the first screen's pictures, loaded before they are asked for ----------
+ * The pictures asked for in the first four seconds of this run are written to
+ * user/warm.txt; the next run queues them right after graphics start, so the
+ * worker decodes them while the fonts and the game lists load (about 3 s),
+ * and the first screen comes up with its pictures instead of filling in. */
+#define WARM_FILE "ux0:data/arcadehub/user/warm.txt"
+#define WARM_MAX 28
+static char warm[WARM_MAX][200];
+static int nwarm;
+
+static void warm_note(const char *path) {
+    if (warm_done || nwarm >= WARM_MAX) return;
+    for (int i = 0; i < nwarm; ++i) if (!strcmp(warm[i], path)) return;
+    snprintf(warm[nwarm++], sizeof(warm[0]), "%s", path);
+}
+
+static void warm_save(void) {
+    static char buf[WARM_MAX * 201];
+    int n = 0;
+    warm_done = 1;
+    for (int i = 0; i < nwarm; ++i) n += snprintf(buf + n, sizeof(buf) - n, "%s\n", warm[i]);
+    ui_save(WARM_FILE, buf, n, 0);
+}
+
+void ui_warm_start(void) {
+    static char buf[WARM_MAX * 201];
+    SceUID fd = sceIoOpen(WARM_FILE, SCE_O_RDONLY, 0);
+    if (fd < 0) return;
+    int n = sceIoRead(fd, buf, sizeof(buf) - 1);
+    sceIoClose(fd);
+    if (n <= 0) return;
+    buf[n] = 0;
+    char *lines[WARM_MAX];
+    int nl = 0;
+    char *save = NULL;
+    for (char *l = strtok_r(buf, "\n", &save); l && nl < WARM_MAX; l = strtok_r(NULL, "\n", &save)) lines[nl++] = l;
+    for (int i = nl - 1; i >= 0; --i) ui_image(lines[i]);    /* the worker takes the latest request first */
+}
+
+int ui_images_busy(void) {
+    int n = 0;
+    for (int i = 0; i < IMGS; ++i) n += imgs[i].state == 1 || imgs[i].state == 2;
+    return n;
+}
+
 vita2d_texture *ui_image(const char *path) {
     if (!path || !*path) return NULL;
+    if (frames > 0 && !warm_done) warm_note(path);
     if (img_sema < 0) {
         img_sema = sceKernelCreateSema("img_wake", 0, 0, 1, NULL);
         img_lock = sceKernelCreateSema("img_lock", 0, 1, 1, NULL);
@@ -901,10 +951,22 @@ void ui_init(void) {
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
     sceMotionStartSampling();
     lang_init();                                     /* before anything is drawn */
+    start_mark(" ui: input, lang");
+    /* Something on screen as early as possible: on a warm start (back from a
+     * game) the background is drawn here, 3.5 s before the first real frame,
+     * so the wait is spent looking at VitaOS and not at LiveArea or black.
+     * A cold start has its own splash or boot video. */
+    ui_theme_load();
+    if (sceKernelGetSystemTimeWide() >= 180ULL * 1000000) {
+        for (int i = 0; i < 2; ++i) { ui_begin_frame(); ui_ambient(1.0f); ui_end_frame(); }
+        start_mark(" ui: early background");
+    }
+    ui_warm_start();                                 /* the last first screen's pictures, decoded while the rest loads */
     font = uifont_load("app0:assets/Inter-Regular.ttf");
     bold = uifont_load("app0:assets/Inter-Bold.ttf");
+    start_mark(" ui: two fonts");
     uifont_set_fallback(uifont_load("app0:assets/NotoSansJP-Subset.otf"));   /* kana and common kanji */
-    ui_theme_load();
+    start_mark(" ui: Japanese font");
 }
 
 #define REPEAT_DELAY_US 350000
