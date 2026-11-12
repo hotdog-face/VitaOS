@@ -39,9 +39,12 @@ of Codex's `agent_autostart.suprx`. Its log (`ux0:data/arcadehub/boot.log`):
 - PS in a game opens the menu; Close game lands in VitaOS about 15 s later
   (VitaOS's own start-up, with its splash, is most of that); a game ended
   from outside also lands in VitaOS.
-- Not checked by eye: that no lock screen showed at power-on (the patches
-  report applied, and nobody had to swipe for the bridge to come up), and
-  wake from sleep.
+- **No lock screen at power-on: confirmed by Mitchell** on a second restart
+  ("it goes straight to VitaOS"); the log was the same, VitaOS up at 23 s.
+- Close game to VitaOS on screen, on a warm system (no splash): **9.4 s**.
+  About 1 s of that is the menu's own exit delay and up to 1.5 s the
+  plugin's first-launch wait; the rest is VitaOS starting.
+- Not checked: wake from sleep.
 
 Red is left in this state. Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
