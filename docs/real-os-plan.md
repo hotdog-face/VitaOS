@@ -378,6 +378,22 @@ passcode. It answers at 192.168.1.35 with hardware address
   - Buttons sent through blue's bridge are dropped about every other time.
   - Blue's clock reads January 2015.
 
+**Mitchell's hands-on check on blue (2026-11-13):** PS opens the menu and
+PS closes it with a real finger (so the PS that did not close it earlier was
+the bridge's injected press). Clock set. His note: switching back to the
+game with PS "was quite glitchy, but it worked".
+
+- What that is (frames captured on red): when the menu hands back to the
+  game, the shell plays its own zoom through the game's LiveArea page (the
+  "Continue" card) before the game shows. It is Sony's app-switch animation.
+- Tried: the menu only exiting, leaving the shell to bring the game back.
+  The shell then stops on the menu's own LiveArea page and the game stays
+  suspended. Worse; not kept.
+- So with the menu as a separate app, that animation stays, going in and
+  coming out. Removing it means drawing the menu inside SceShell over the
+  live game, with no app switch (the kernel + PAF overlay in target 2,
+  step 2). That is the next big piece if the animation matters.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
