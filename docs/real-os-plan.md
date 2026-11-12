@@ -851,10 +851,13 @@ Not part of this project; red's own problem. No fix yet.
 - `data/data.cpk` is 2,009,975,112 bytes, which matches the 1.87 GB a
   modding wiki gives for that file, so the dump is probably whole. No
   byte-exact reference was found.
-- Left to try, in order: `fd_fix.skprx` out of the config (one source says
-  not to use it with rePatch, and red loads both; that is a `*KERNEL` line,
-  so it needs Mitchell's OK and a restart); the game's trophy data in
-  `ur0:user/00/trophy`; a fresh dump.
+- `fd_fix.skprx` ruled out too (with Mitchell's OK): with its `*KERNEL`
+  line commented out and red restarted, the same crash at the same point.
+  The line was put back (config byte-identical to before, backup in
+  `backups/red-tai-before-fdfix-test-20261113`).
+- Left to try: the game's trophy data in `ur0:user/00/trophy` (the "cannot
+  earn trophies" warning says it belongs to another account), then the
+  other plugins one at a time, then a fresh dump.
 
 **Quake (`QUAK00001`)**
 
