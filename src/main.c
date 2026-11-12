@@ -153,14 +153,30 @@ static void release_ps(void);
 static volatile int ps_relock;
 static volatile int woke;
 
+/* For the lock screen: when the system last said it was going down. Waking
+ * with only SCE_POWER_CB_SYSTEM_RESUME did not show the lock screen on red
+ * (2026-11-13), so any resume notice counts, provided a suspend notice came
+ * first and the clock has moved at least three seconds since (a trip to
+ * LiveArea and back is not a sleep). The notices are logged, a few lines
+ * per sleep, to say what the system really sends. */
+static volatile SceUInt64 slept_tick;
+static void home_log(const char *fmt, int a, int b);
+
 static int power_cb(int notify_id, int notify_count, int info, void *common) {
     (void)notify_id; (void)notify_count; (void)common;
+    SceRtcTick now = {0};
+    sceRtcGetCurrentTick(&now);
     if (info & (SCE_POWER_CB_SYSTEM_SUSPEND | SCE_POWER_CB_APP_SUSPEND | SCE_POWER_CB_BUTTON_POWER_PRESS)) {
         lock_ps(0);
         ps_relock = 1;
+        if (info & (SCE_POWER_CB_SYSTEM_SUSPEND | SCE_POWER_CB_APP_SUSPEND)) slept_tick = now.tick;
     }
     if (info & (SCE_POWER_CB_SYSTEM_RESUME | SCE_POWER_CB_APP_RESUME)) ps_relock = 2;
-    if (info & SCE_POWER_CB_SYSTEM_RESUME) woke = 1;       /* out of sleep: the lock screen, if it is on */
+    if ((info & (SCE_POWER_CB_SYSTEM_RESUME | SCE_POWER_CB_APP_RESUME | SCE_POWER_CB_AFTER_SYSTEM_RESUME | SCE_POWER_CB_SYSTEM_RESUMING | SCE_POWER_CB_APP_RESUMING)) && slept_tick) {
+        int secs = (int)((now.tick - slept_tick) / 1000000);
+        home_log("power: resume notice 0x%08X after %d s\n", info, secs);
+        if (secs >= 3) { woke = 1; slept_tick = 0; }
+    } else home_log("power: notice 0x%08X %d\n", info, 0);
     return 0;
 }
 
