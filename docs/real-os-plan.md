@@ -56,10 +56,10 @@ red, **[web]** from published plugins or docs and not yet checked on red,
    **[web]**; Codex used hold L on red to get out of the SceShell freeze
    **[codex]**.
 2. **Bad kernel plugin in `config.txt`:** the same. Hold L.
-3. **With L held, red has no SD2Vita `ux0:`?** No: YAMT loads from
-   `boot_config.txt`, which L does not skip, so `ux0:` stays the SD2Vita card
-   and the tools on it stay reachable. **[unverified]**: check in phase 0
-   against YAMT's source, and once on red when a restart is approved anyway.
+3. **With L held, red keeps its SD2Vita `ux0:`** (YAMT loads from
+   `boot_config.txt`, which L does not skip), so the tools on it stay
+   reachable. **[red, 2026-11-12]** Retail games won't start in that mode
+   (`nonpdrm` is skipped); homebrew such as VitaShell does.
 4. **Bad module in `boot_config.txt`:** only Safe Mode helps (R + PS + Power).
    Safe Mode skips Ensō's patches. "Restart" is the only safe choice there;
    "Restore the PS Vita System" resets settings and leaves Ensō inactive
@@ -172,9 +172,34 @@ After run 4 (red back up about 21:20 UTC):
   game: "closed last game", "closing running app", "lowmem: applying 0 0".
 - After the restart the kiosk is on again and Home in front is `MVZA00010`.
 
-Not known yet: whether the same run freezes with the bridge not loaded, and
-whether it freezes with the LowMemMode hook on. Run 4 is not repeated
-remotely until that is known, because each freeze costs a forced power-off.
+**Later the same day: the freeze was a crashing game, not the bridge.**
+
+- By hand, Persona 4 Golden and two other titles (one was the Quake port)
+  crashed on red on their own, with the bridge's two files moved aside and
+  with them back. Persona 4 has no play time recorded on red at all. Quake's
+  dump: data abort in `SceGxm` on its main thread. These titles are broken
+  on red by themselves; why is a separate follow-up.
+- Holding L keeps the SD2Vita card (the bubbles were there) but retail games
+  refuse to start, because `nonpdrm` is skipped. **[red]**
+- Control: Sound Shapes (`PCSA00003`, last played Oct 2) starts and gets
+  past its title screen.
+- **Run 5: ElevenMPV-A beside Sound Shapes, bridge and vakern loaded, kiosk
+  on: works.** Eleven ran for 25 s, the bridge kept answering, PS showed
+  both, and Continue went back into the same game process
+  (pid `0x00222767` before and after). No hang.
+
+So run 4's hang was Eleven being started while Persona 4 was crashing in
+the background (the system writes a crash dump at that point). Rule for the
+shell plugin: never launch anything while an app is ending or a dump is
+being written; the bridge already logs "kiosk: crash dump, waiting".
+Codex's "the bridge freezes SceShell beside a second app" is not reproduced:
+five runs, the only hang explained by a crashing game. The blocker for
+targets 2 and 4 is lifted as far as red shows today.
+
+Also seen: the bridge's `launch` fails with `0x80AB0010` if sent while the
+kiosk is reopening Home; and crash dumps on red stay `.tmp` (cut short).
+The bridge refuses to rename its own two files; VitaShell FTP (port 1337)
+does it.
 
 Codex's lessons that this plan keeps:
 
