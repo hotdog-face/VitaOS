@@ -1,6 +1,6 @@
 # VitaOS 1.9.0 (draft release notes)
 
-Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardware" and "Before release" below.
+Not released yet. Tested on red (PCH-1000) on 2026-11-11: see "Tested on hardware" and "Before release" below.
 
 ## Music, films and previews play again
 
@@ -90,7 +90,7 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
 - When there's nothing to show yet, Play and Home explain where games go and
   how to get started.
 
-## Tested on hardware (red, PCH-2000, 2026-11-11)
+## Tested on hardware (red, PCH-1000, 2026-11-11)
 
 Screenshots are in `docs/screenshots-1.9.0-red/`.
 
