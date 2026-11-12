@@ -189,7 +189,7 @@ void ui_begin_frame(void) {
  * Any thread may post one (the download worker does), so posting only copies
  * into a ring; the main loop draws. */
 #define TOASTS 4
-static struct { char text[96]; unsigned int color; int frames; } toasts[TOASTS];
+static struct { char text[200]; unsigned int color; int frames; } toasts[TOASTS];   /* room for 2- and 3-byte scripts */
 static volatile unsigned int toast_head;
 static SceUID toast_lock = -1;
 
@@ -1465,30 +1465,58 @@ static void end_frame(void) {
 
 /* Word-wraps body inside the card. */
 static void body_text(int x, int y, int w, const char *body) {
-    char line[200];
+    /* Translated a paragraph at a time, before wrapping: a body is a fixed
+     * sentence, optionally followed by lines of its own (a path, a name).
+     * Wrapped first, as it used to be, no dialog body ever matched. */
+    static char local[1400];
+    int o = 0;
+    for (const char *q = body; *q && o < (int)sizeof(local) - 2;) {
+        const char *e = strchr(q, '\n');
+        int n = e ? (int)(e - q) : (int)strlen(q);
+        char para[700];
+        snprintf(para, sizeof(para), "%.*s", n, q);
+        o += snprintf(local + o, sizeof(local) - o, "%s%s", tr(para), e ? "\n" : "");
+        if (o >= (int)sizeof(local)) o = sizeof(local) - 1;
+        q += n + (e ? 1 : 0);
+    }
+    local[o] = 0;
+    /* Wrap. A unit is a run of ordinary characters up to a space, or one
+     * CJK character on its own (Japanese has no spaces: lines may break
+     * between any two of its characters). */
+    char line[400];
     int len = 0, ly = y;
-    const char *p = body;
+    const char *p = local;
     while (*p) {
-        const char *word = p;
-        while (*p && *p != ' ' && *p != '\n') ++p;
-        int wl = (int)(p - word);
-        char trial[200];
-        snprintf(trial, sizeof(trial), "%.*s%s%.*s", len, line, len ? " " : "", wl, word);
+        if (*p == '\n') {
+            line[len] = 0;
+            if (len) text(font, x, ly, C_DIM, 19, line);
+            ly += 28;
+            len = 0;
+            ++p;
+            continue;
+        }
+        int space = 0;
+        while (*p == ' ') { space = 1; ++p; }
+        if (!*p || *p == '\n') continue;
+        const char *unit = p;
+        if ((unsigned char)*p >= 0xE3) {                         /* one 3- or 4-byte character (kana, kanji, full-width) */
+            ++p;
+            while (((unsigned char)*p & 0xC0) == 0x80) ++p;
+        } else {
+            while (*p && *p != ' ' && *p != '\n' && (unsigned char)*p < 0xE3) ++p;
+        }
+        int ul = (int)(p - unit);
+        char trial[400];
+        snprintf(trial, sizeof(trial), "%.*s%s%.*s", len, line, len && space ? " " : "", ul, unit);
         if (len && text_w(font, 19, trial) > w) {
             line[len] = 0;
             text(font, x, ly, C_DIM, 19, line);
             ly += 28;
-            len = snprintf(line, sizeof(line), "%.*s", wl, word);
+            len = snprintf(line, sizeof(line), "%.*s", ul, unit);
         } else {
             len = snprintf(line, sizeof(line), "%s", trial);
         }
-        if (*p == '\n') {
-            line[len] = 0;
-            text(font, x, ly, C_DIM, 19, line);
-            ly += 28;
-            len = 0;
-        }
-        if (*p) ++p;
+        if (len >= (int)sizeof(line)) len = sizeof(line) - 1;
     }
     if (len) { line[len] = 0; text(font, x, ly, C_DIM, 19, line); }
 }

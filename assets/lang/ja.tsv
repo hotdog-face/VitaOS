@@ -178,7 +178,6 @@ THIS WEEK	今週
 played this week	今週のプレイ
 COMMUNITY NEWS	コミュニティニュース
 See it in the Store	ストアで見る
-Welcome back	おかえりなさい
 Play a game, a film or an album and it shows up here.	ゲーム・映画・アルバムを再生するとここに表示されます。
 Could not start	起動できません
 The game would not launch.	ゲームを起動できませんでした。
@@ -256,7 +255,6 @@ Wi-Fi networks	Wi-Fiネットワーク
 Bluetooth devices	Bluetooth機器
 Manage storage	ストレージを管理
 Update	アップデート
-Start at boot	起動時に開く
 Hide the bubbles	バブルを隠す
 Movies tab	映画タブ
 Music tab	音楽タブ
@@ -269,7 +267,6 @@ Put the Vita to sleep? Wi-Fi goes off too, so agents cannot reach it until you w
 Restart the Vita now? Anything unsaved in a suspended game is lost.	Vitaを再起動しますか？中断中のゲームの未保存データは失われます。
 Turn the Vita off? Hold the power button to turn it back on.	Vitaの電源を切りますか？電源ボタン長押しで再び起動します。
 VitaOS will not open at power-on	起動時にVitaOSを開きません
-VitaOS opens at power-on (needs the PS plugin)	起動時にVitaOSを開きます（PSプラグインが必要）
 Movies tab hidden	映画タブを非表示
 Movies tab shown	映画タブを表示
 Music tab hidden	音楽タブを非表示
@@ -283,7 +280,6 @@ PS opens the system's bubbles for 30 s	PSで30秒間システムのバブルを�
 The town on Home's weather widget	ホームの天気の地域
 Biggest folders, and clean up crash dumps and logs	大きなフォルダと、ダンプやログの整理
 Press X (or START anywhere in Settings)	X（または設定内でSTART）
-Open VitaOS at power-on (needs the PS plugin)	起動時にVitaOSを開く（PSプラグインが必要）
 VitaOS comes back when a game ends or the bubbles sit idle	ゲーム終了時やバブル放置時にVitaOSへ戻る
 Look through the card for new games	カード内の新しいゲームを探す
 For games that have none yet	画像がないゲーム向け
@@ -313,7 +309,6 @@ Not installing this one	これはインストールしません
 Not a VPK	VPKではありません
 Blocked on this Vita	このVitaではブロック
 Installed: it is first in Apps	インストール完了: アプリの先頭
-Installed	インストール済み
 Install	インストール
 Also needs	必要なもの
 Data files: not installed automatically	データファイル: 自動ではインストールされません
@@ -363,7 +358,6 @@ Loading your films…	映画を読み込み中…
 No movies yet	映画がありません
 Removed from Liked songs	お気に入りから削除
 Added to Liked songs	お気に入りに追加
-This song would not play	この曲は再生できません
 Shuffle on	シャッフル オン
 Shuffle off	シャッフル オフ
 Delete song	曲を削除
@@ -379,7 +373,6 @@ Loading your music…	音楽を読み込み中…
 No music yet	音楽がありません
 Songs you like show up here, newest first.	お気に入りの曲が新しい順に表示されます。
 Singles	シングル
-That file would not play	そのファイルは再生できません
 Adrenaline opens: pick the game there	Adrenalineが開きます。そこでゲームを選択
 Favourite ★	お気に入り ★
 Add to favourites	お気に入りに追加
@@ -402,3 +395,51 @@ Snow	雪
 Showers	にわか雨
 Snow showers	にわか雪
 Thunderstorms	雷雨
+Start at power-on	電源オンで開く
+Set up	設定する
+Needs taiHEN	taiHENが必要
+Set up by hand	手動で設定
+VitaOS opens when the Vita starts, and comes back after games	Vitaの起動時にVitaOSが開き、ゲーム終了後に戻ります
+Open VitaOS when the Vita starts	Vitaの起動時にVitaOSを開く
+VitaOS plugin	VitaOSプラグイン
+Installed	インストール済み
+Update ready	更新あり
+This Vita has no tai/config.txt, so plugins are not set up here. Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.	このVitaにはtai/config.txtがなく、プラグインを使えません。taiHEN付きのHENkaku/Ensoを導入してから(vita.hacks.guide)、もう一度お試しください。
+VitaOS adds one line to the file below and keeps a copy of the old one. If the Vita starts badly, hold L at power-on to skip all plugins.	VitaOSは下のファイルに1行追加し、元のファイルのコピーを残します。うまく起動しないときは、電源を入れる際にLを押し続けるとプラグインを読み込みません。
+Done. It starts working after a restart. Restart the Vita now?	完了しました。再起動後に有効になります。今すぐVitaを再起動しますか?
+VitaOS opens at power-on after the next restart	次回の再起動後から、電源オンでVitaOSが開きます
+VitaOS opens at power-on	電源オンでVitaOSを開きます
+Update the plugin	プラグインを更新
+Remove the plugin	プラグインを削除
+What it does	機能の説明
+Plugin updated: restart the Vita to use it	プラグインを更新しました。Vitaを再起動すると有効になります
+VitaOS will no longer open at power-on or come back after games. The line is taken out of the config; a copy of the old file is kept.	電源オンでVitaOSが開かなくなり、ゲーム終了後にも戻らなくなります。設定ファイルから行を削除し、元のファイルのコピーを残します。
+Removed: the Vita starts as usual after a restart	削除しました。再起動後は通常どおり起動します
+Opens VitaOS at power-on and after games. Hold L at power-on to skip plugins once.	電源オン時とゲーム終了後にVitaOSを開きます。電源を入れる際にLを押し続けると、その回だけプラグインを読み込みません。
+Your old config is kept as config.txt.before-vitaos, next to:	元の設定は config.txt.before-vitaos として次の場所に残ります:
+This config file is saved as UTF-16, which VitaOS will not edit. Nothing was changed: add the plugin line by hand.	この設定ファイルはUTF-16で保存されているため、VitaOSでは編集しません。何も変更していません。プラグインの行を手動で追加してください。
+This config file contains a stray zero byte, so VitaOS will not edit it. Nothing was changed: add the plugin line by hand.	この設定ファイルには不要なゼロバイトが含まれているため、VitaOSでは編集しません。何も変更していません。プラグインの行を手動で追加してください。
+Could not keep a backup of the config file, so nothing was changed.	設定ファイルのコピーを保存できなかったため、何も変更していません。
+Could not write the new config file, so nothing was changed.	新しい設定ファイルを書き込めなかったため、何も変更していません。
+Could not put the config file back. It is safe under the name below: rename it to config.txt in VitaShell before restarting.	設定ファイルを元に戻せませんでした。下の名前で安全に残っています。再起動する前に、VitaShellで config.txt に名前を変更してください。
+Could not replace the config file; the old one is back in place.	設定ファイルを置き換えられませんでした。元のファイルに戻してあります。
+Could not read the config file.	設定ファイルを読み込めませんでした。
+This VitaOS package has no plugin inside.	このVitaOSパッケージにはプラグインが入っていません。
+Could not copy the plugin to ur0:tai.	プラグインを ur0:tai にコピーできませんでした。
+Show in Play	プレイに表示
+Moved to Play	プレイに移動しました
+Moved to Apps	アプリに移動しました
+X Move it to Apps	X アプリに移動
+Could not save that: the card may be full	保存できませんでした。カードの空きがない可能性があります
+The emulator for this game is not installed any more. Install it from the Store, then try again.	このゲームのエミュレーターがインストールされていません。ストアからインストールして、もう一度お試しください。
+No games yet	まだゲームがありません
+VitaOS shows the PS Vita games you have installed, PSP games in ux0:pspemu, and ROMs in ux0:roms/<console> (for example ux0:roms/snes) once RetroArch is installed.	VitaOSは、インストール済みのPS Vitaゲーム、ux0:pspemu のPSPゲーム、そしてRetroArchを入れると ux0:roms/<機種名>(例: ux0:roms/snes)のROMを表示します。
+Press R to reach the Store tab for RetroArch and other emulators, copy your games over, then choose Settings > VitaOS > Find games again.	Rボタンでストアのタブに移動してRetroArchなどのエミュレーターを入れ、ゲームをコピーしてから、設定 > VitaOS > ゲームを再検索 を選んでください。
+Welcome to VitaOS	VitaOSへようこそ
+L and R switch tabs. Games are in Play, homebrew is in the Store.	LとRでタブを切り替えます。ゲームはプレイ、自作ソフトはストアにあります。
+To open VitaOS when the Vita starts: Settings > VitaOS > Start at power-on.	Vitaの起動時にVitaOSを開くには: 設定 > VitaOS > 電源オンで開く
+That song would not play: it needs to be an AAC .m4a	この曲は再生できません。AAC形式の .m4a が必要です
+That film would not play: it needs to be an H.264 .mp4 up to 960x544	この映画は再生できません。960x544までのH.264の .mp4 が必要です
+Apple Lossless (ALAC) can't play on the Vita: convert it to AAC	Apple Lossless (ALAC) はVitaで再生できません。AACに変換してください
+This file's sound format can't play on the Vita: convert it to AAC	このファイルの音声形式はVitaで再生できません。AACに変換してください
+VitaOS's player module did not load: reinstall VitaOS	VitaOSの再生モジュールを読み込めませんでした。VitaOSを再インストールしてください

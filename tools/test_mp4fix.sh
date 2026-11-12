@@ -69,6 +69,10 @@ check "chapters: text track kept" chapters.m4a 1 2 0
 [ "$(chapters chapters.m4a)" = 2 ] && echo "chapters still readable            ok" || { echo "chapters still readable            FAIL"; fail=1; }
 check "song with real video: kept" clip.m4a 1 2 0
 check "film: reordered only" film.mp4 0 2 0
+# fragmented files are left exactly as they are (their tables live in the fragments)
+$q -i last.m4a -loop 1 -t 8 -i cover.png -map 0:a -map 1:v -c:a copy -c:v mjpeg -r 1 -movflags frag_keyframe+empty_moov -f mp4 frag.m4a
+cp frag.m4a frag0.m4a; ./fix 1 frag.m4a > out.txt
+if cmp -s frag.m4a frag0.m4a && [ ! -e frag.m4a.orig ] && [ ! -e frag.m4a.part ] && [ "$(audio frag.m4a)" = "$(audio frag0.m4a)" ]; then echo "fragmented + cover: left alone      ok   ($(cat out.txt))"; else echo "fragmented + cover: left alone      FAIL ($(cat out.txt))"; fail=1; fi
 # cancel: nothing changes
 cp last.m4a x.m4a 2>/dev/null; $q -f lavfi -i "sine=frequency=440:duration=8" -c:a aac c.m4a; cp c.m4a c0.m4a
 ./fix 1 c.m4a cancel > out.txt

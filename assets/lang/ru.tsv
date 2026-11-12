@@ -178,7 +178,6 @@ THIS WEEK	ЭТА НЕДЕЛЯ
 played this week	сыграно за неделю
 COMMUNITY NEWS	НОВОСТИ СООБЩЕСТВА
 See it in the Store	Открыть в магазине
-Welcome back	С возвращением
 Play a game, a film or an album and it shows up here.	Запустите игру, фильм или альбом, и он появится здесь.
 Could not start	Не удалось запустить
 The game would not launch.	Игра не запустилась.
@@ -256,7 +255,6 @@ Wi-Fi networks	Сети Wi-Fi
 Bluetooth devices	Устройства Bluetooth
 Manage storage	Управление памятью
 Update	Обновить
-Start at boot	Открывать при запуске
 Hide the bubbles	Скрыть пузыри
 Movies tab	Вкладка Фильмы
 Music tab	Вкладка Музыка
@@ -269,7 +267,6 @@ Put the Vita to sleep? Wi-Fi goes off too, so agents cannot reach it until you w
 Restart the Vita now? Anything unsaved in a suspended game is lost.	Перезапустить Vita? Несохранённое в приостановленной игре будет потеряно.
 Turn the Vita off? Hold the power button to turn it back on.	Выключить Vita? Удерживайте кнопку питания, чтобы включить.
 VitaOS will not open at power-on	VitaOS не будет открываться при запуске
-VitaOS opens at power-on (needs the PS plugin)	VitaOS открывается при запуске (нужен плагин PS)
 Movies tab hidden	Вкладка Фильмы скрыта
 Movies tab shown	Вкладка Фильмы показана
 Music tab hidden	Вкладка Музыка скрыта
@@ -283,7 +280,6 @@ PS opens the system's bubbles for 30 s	PS открывает системные 
 The town on Home's weather widget	Город в виджете погоды
 Biggest folders, and clean up crash dumps and logs	Крупные папки и очистка дампов и логов
 Press X (or START anywhere in Settings)	Нажмите X (или START в настройках)
-Open VitaOS at power-on (needs the PS plugin)	Открывать VitaOS при запуске (нужен плагин PS)
 VitaOS comes back when a game ends or the bubbles sit idle	VitaOS возвращается после игры или при простое
 Look through the card for new games	Искать новые игры на карте
 For games that have none yet	Для игр без обложки
@@ -313,7 +309,6 @@ Not installing this one	Не устанавливается
 Not a VPK	Не VPK
 Blocked on this Vita	Заблокировано на этой Vita
 Installed: it is first in Apps	Установлено: первым в Приложениях
-Installed	Установлено
 Install	Установить
 Also needs	Также нужно
 Data files: not installed automatically	Файлы данных: не ставятся автоматически
@@ -363,7 +358,6 @@ Loading your films…	Загрузка фильмов…
 No movies yet	Фильмов пока нет
 Removed from Liked songs	Удалено из любимых
 Added to Liked songs	Добавлено в любимые
-This song would not play	Песня не воспроизводится
 Shuffle on	Перемешивание вкл.
 Shuffle off	Перемешивание выкл.
 Delete song	Удалить песню
@@ -379,7 +373,6 @@ Loading your music…	Загрузка музыки…
 No music yet	Музыки пока нет
 Songs you like show up here, newest first.	Любимые песни появятся здесь, сначала новые.
 Singles	Синглы
-That file would not play	Файл не воспроизводится
 Adrenaline opens: pick the game there	Откроется Adrenaline: выберите игру там
 Favourite ★	Избранное ★
 Add to favourites	В избранное
@@ -402,3 +395,51 @@ Snow	Снег
 Showers	Ливни
 Snow showers	Снегопад
 Thunderstorms	Грозы
+Start at power-on	Открывать при включении
+Set up	Настроить
+Needs taiHEN	Нужен taiHEN
+Set up by hand	Настроить вручную
+VitaOS opens when the Vita starts, and comes back after games	VitaOS открывается при включении и возвращается после игр
+Open VitaOS when the Vita starts	Открывать VitaOS при включении Vita
+VitaOS plugin	Плагин VitaOS
+Installed	Установлен
+Update ready	Есть обновление
+This Vita has no tai/config.txt, so plugins are not set up here. Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.	На этой Vita нет tai/config.txt, плагины здесь не настроены. Установите HENkaku/Enso с taiHEN (vita.hacks.guide) и повторите.
+VitaOS adds one line to the file below and keeps a copy of the old one. If the Vita starts badly, hold L at power-on to skip all plugins.	VitaOS добавит одну строку в файл ниже и сохранит копию старого. Если Vita плохо запускается, держите L при включении: плагины не загрузятся.
+Done. It starts working after a restart. Restart the Vita now?	Готово. Заработает после перезапуска. Перезапустить Vita сейчас?
+VitaOS opens at power-on after the next restart	VitaOS будет открываться при включении после перезапуска
+VitaOS opens at power-on	VitaOS открывается при включении
+Update the plugin	Обновить плагин
+Remove the plugin	Удалить плагин
+What it does	Что он делает
+Plugin updated: restart the Vita to use it	Плагин обновлён: перезапустите Vita
+VitaOS will no longer open at power-on or come back after games. The line is taken out of the config; a copy of the old file is kept.	VitaOS больше не будет открываться при включении и возвращаться после игр. Строка убирается из конфигурации; копия старого файла сохраняется.
+Removed: the Vita starts as usual after a restart	Удалено: после перезапуска Vita запускается как обычно
+Opens VitaOS at power-on and after games. Hold L at power-on to skip plugins once.	Открывает VitaOS при включении и после игр. Держите L при включении, чтобы один раз пропустить плагины.
+Your old config is kept as config.txt.before-vitaos, next to:	Старая конфигурация: config.txt.before-vitaos, рядом с:
+This config file is saved as UTF-16, which VitaOS will not edit. Nothing was changed: add the plugin line by hand.	Этот файл конфигурации сохранён в UTF-16, VitaOS его не редактирует. Ничего не изменено: добавьте строку плагина вручную.
+This config file contains a stray zero byte, so VitaOS will not edit it. Nothing was changed: add the plugin line by hand.	В этом файле конфигурации есть лишний нулевой байт, поэтому VitaOS его не редактирует. Ничего не изменено: добавьте строку плагина вручную.
+Could not keep a backup of the config file, so nothing was changed.	Не удалось сохранить копию файла конфигурации, ничего не изменено.
+Could not write the new config file, so nothing was changed.	Не удалось записать новый файл конфигурации, ничего не изменено.
+Could not put the config file back. It is safe under the name below: rename it to config.txt in VitaShell before restarting.	Не удалось вернуть файл конфигурации. Он в сохранности под именем ниже: переименуйте его в config.txt в VitaShell до перезапуска.
+Could not replace the config file; the old one is back in place.	Не удалось заменить файл конфигурации; старый возвращён на место.
+Could not read the config file.	Не удалось прочитать файл конфигурации.
+This VitaOS package has no plugin inside.	В этом пакете VitaOS нет плагина.
+Could not copy the plugin to ur0:tai.	Не удалось скопировать плагин в ur0:tai.
+Show in Play	Показать в Играх
+Moved to Play	Перемещено в Игры
+Moved to Apps	Перемещено в Прил.
+X Move it to Apps	X Переместить в Прил.
+Could not save that: the card may be full	Не удалось сохранить: возможно, карта заполнена
+The emulator for this game is not installed any more. Install it from the Store, then try again.	Эмулятор для этой игры больше не установлен. Установите его из Магазина и повторите.
+No games yet	Игр пока нет
+VitaOS shows the PS Vita games you have installed, PSP games in ux0:pspemu, and ROMs in ux0:roms/<console> (for example ux0:roms/snes) once RetroArch is installed.	VitaOS показывает установленные игры PS Vita, игры PSP из ux0:pspemu и ROM-файлы из ux0:roms/<консоль> (например, ux0:roms/snes), когда установлен RetroArch.
+Press R to reach the Store tab for RetroArch and other emulators, copy your games over, then choose Settings > VitaOS > Find games again.	Нажимайте R до вкладки Магазин, установите RetroArch и другие эмуляторы, скопируйте игры и выберите Настройки > VitaOS > Найти игры заново.
+Welcome to VitaOS	Добро пожаловать в VitaOS
+L and R switch tabs. Games are in Play, homebrew is in the Store.	L и R переключают вкладки. Игры — в «Игры», homebrew — в Магазине.
+To open VitaOS when the Vita starts: Settings > VitaOS > Start at power-on.	Чтобы VitaOS открывалась при включении: Настройки > VitaOS > Открывать при включении.
+That song would not play: it needs to be an AAC .m4a	Песня не воспроизводится: нужен файл .m4a в формате AAC
+That film would not play: it needs to be an H.264 .mp4 up to 960x544	Фильм не воспроизводится: нужен .mp4 H.264 до 960x544
+Apple Lossless (ALAC) can't play on the Vita: convert it to AAC	Apple Lossless (ALAC) не воспроизводится на Vita: преобразуйте в AAC
+This file's sound format can't play on the Vita: convert it to AAC	Формат звука этого файла не воспроизводится на Vita: преобразуйте в AAC
+VitaOS's player module did not load: reinstall VitaOS	Модуль плеера VitaOS не загрузился: переустановите VitaOS

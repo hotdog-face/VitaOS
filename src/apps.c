@@ -268,9 +268,7 @@ static void options(int i) {
     if (k == 1) {                                     /* a game that Apps took for an app (issue 9) */
         if (library_set_user_choice(a->tid, 1) < 0) { ui_toast("Could not save that: the card may be full", C_BAD); return; }
         library_rescan_wanted = 1;
-        char m[120];
-        snprintf(m, sizeof(m), "%.60s moves to Play", a->title);
-        ui_toast(m, C_ACCENT);
+        ui_toast("Moved to Play", C_ACCENT);
         loaded = 0;                                   /* scan again without it */
     }
     if (k == 2) {

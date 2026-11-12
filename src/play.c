@@ -31,6 +31,7 @@
 #include "video.h"
 #include "ui.h"
 #include "play.h"
+#include "lang.h"
 #include "apps.h"
 #include "library.h"
 #include "store.h"
@@ -337,17 +338,66 @@ static void fill_multi(void) {
 
 /* Drops every game listed in hidden.tsv from its real system. Runs before the
  * lists are built, so Continue/Favourites/Multiplayer never resolve to one. */
+/* The player's own Play/Apps choices (Apps > Show in Play, Play > Move it to
+ * Apps), as "\n<TITLEID>\n..." text for quick lookups. */
+static char *choice_list(const char *file) {
+    int len = 0;
+    char *raw = slurp(file, &len);
+    if (!raw) return NULL;
+    char *out = malloc(len + 3);
+    if (out) { out[0] = '\n'; memcpy(out + 1, raw, len); out[len + 1] = '\n'; out[len + 2] = 0; }
+    free(raw);
+    return out;
+}
+static int chosen(const char *list, const char *tid) {
+    char key[16];
+    if (!list || !tid || strlen(tid) != 9) return 0;
+    snprintf(key, sizeof(key), "\n%s", tid);
+    const char *at = strstr(list, key);
+    return at && (at[10] == '\n' || at[10] == '\r');
+}
+
 static void apply_hidden(void) {
+    /* An app the player put back with Show in Play is never hidden: 1.9.0's
+     * first build hid a game when it was moved to Apps, and it then showed
+     * in neither tab. Such entries are taken out of hidden.tsv here. */
+    char *to_play = choice_list(USER "play-apps.txt");
+    int healed = 0;
     for (int s = first_real; s < last_real; ++s) {
         System *sy = &systems[s];
         int w = 0;
         for (int i = 0; i < sy->count; ++i) {
             int drop = 0;
-            for (int h = 0; h < nhidden && !drop; ++h) drop = ref_is(&hidden[h], &sy->games[i]);
+            for (int h = 0; h < nhidden && !drop; ++h) {
+                if (!ref_is(&hidden[h], &sy->games[i])) continue;
+                if (!strcmp(sy->games[i].kind, "app") && chosen(to_play, sy->games[i].a1)) {
+                    memmove(&hidden[h], &hidden[h + 1], (nhidden - h - 1) * sizeof(Ref));
+                    nhidden--; healed = 1;
+                    break;
+                }
+                drop = 1;
+            }
             if (!drop) sy->games[w++] = sy->games[i];
         }
         sy->count = w;
     }
+    free(to_play);
+    if (healed) save_refs(USER "hidden.tsv", hidden, nhidden);
+}
+
+/* Apps the player moved to Apps leave Play, whatever the catalog says (a
+ * catalog built on a computer still lists them). */
+static void apply_choices(void) {
+    char *to_apps = choice_list(USER "apps-only.txt");
+    if (!to_apps) return;
+    for (int s = first_real; s < last_real; ++s) {
+        System *sy = &systems[s];
+        int w = 0;
+        for (int i = 0; i < sy->count; ++i)
+            if (strcmp(sy->games[i].kind, "app") || !chosen(to_apps, sy->games[i].a1)) sy->games[w++] = sy->games[i];
+        sy->count = w;
+    }
+    free(to_apps);
 }
 
 /* The ROM path the launcher would use, or NULL when there is nothing to delete
@@ -454,7 +504,8 @@ static void rename_game(Game *g) {
 static void hide_game(int sys, int sel, int delete_rom) {
     System *sy = &systems[sys];
     Game g = sy->games[sel];
-    if (nhidden < MAX_HIDDEN) {
+    int to_apps = !delete_rom && !strcmp(g.kind, "app");   /* moved, not hidden: Show in Play brings it back */
+    if (!to_apps && nhidden < MAX_HIDDEN) {
         ref_set(&hidden[nhidden], &g);                  /* by the shown name: renames apply before hidden.tsv */
         nhidden++;
         save_refs(USER "hidden.tsv", hidden, nhidden);
@@ -906,7 +957,7 @@ static int launch(const Game *g) {
             snprintf(uri, sizeof(uri), "psgm:play?titleid=%s", bubble);
         else {
             snprintf(uri, sizeof(uri), "psgm:play?titleid=PSPEMUCFW");
-            ui_toast("Adrenaline opens: pick the game there (a bubble for it, or RetroFlow, starts it directly)", C_ACCENT);
+            ui_toast("Adrenaline opens: pick the game there", C_ACCENT);
         }
     } else return -1;
     /* The SceShell bridge (vabridge >= 3.2) taps OK on the "Arcade Hub will
@@ -1026,6 +1077,7 @@ void play_init(void) {
     if (nsys <= VIRT) nsys = 0;
     else { load_names(); apply_names();
            nhidden = load_refs(USER "hidden.tsv", hidden, MAX_HIDDEN); if (nhidden) apply_hidden();
+           apply_choices();
            build_colls(); setup_lists(); }
     sys = first_real < last_real ? first_real : 0;      /* Play opens on the consoles */
     group = 0;
@@ -1050,6 +1102,14 @@ void play_init(void) {
 /* The library changed on the card (VitaOS's background scan): read it again.
  * The old games arrays are left behind (a few KB, rarely). */
 void play_reload(void) {
+    /* Where the player is, by name: the lists are about to be rebuilt, and a
+     * background reload must not throw them back to the first console. */
+    char at_id[32] = "", at_title[160] = "";
+    int at_view = view, at_group = group;
+    if (nsys && sys >= 0 && sys < nsys) {
+        snprintf(at_id, sizeof(at_id), "%s", systems[sys].id);
+        if (view == 1 && sel >= 0 && sel < systems[sys].count) snprintf(at_title, sizeof(at_title), "%s", NZ(systems[sys].games[sel].title));
+    }
     video_stop_owned(OWN_PREVIEW);
     playing[0] = 0;
     attract = 0; idle = 0; a_sys = a_sel = 0;        /* its indexes point into the old lists */
@@ -1063,11 +1123,25 @@ void play_reload(void) {
     if (nsys <= VIRT) nsys = 0;
     else { load_names(); apply_names();
            nhidden = load_refs(USER "hidden.tsv", hidden, MAX_HIDDEN); if (nhidden) apply_hidden();
+           apply_choices();
            build_colls(); setup_lists(); }
     sys = first_real < last_real ? first_real : 0;
     group = 0;
     view = 0;
     sel = 0;
+    for (int i = 0; at_id[0] && i < nsys; ++i) {
+        if (strcmp(systems[i].id, at_id)) continue;
+        sys = i;
+        group = at_group;
+        if (!in_group(sys)) group = !group;
+        if (at_view == 1 && systems[i].count) {
+            view = 1;
+            for (int k = 0; k < systems[i].count; ++k)
+                if (!strcmp(NZ(systems[i].games[k].title), at_title)) { sel = k; break; }
+            game_pos = sel;
+        }
+        break;
+    }
     sys_pos = ord_of(sys);
 }
 
@@ -1353,12 +1427,12 @@ void play_frame(const Input *in) {
     fullscreen = 0;
     context[0] = 0;
     if (nsys == 0) {
-        uifont_draw(bold, 60, 180, WHITE, 28, "No games yet");
-        draw_wrapped(font, "VitaOS shows the PS Vita games you have installed, PSP games in ux0:pspemu, "
-                           "and ROMs in ux0:roms/<console> (for example ux0:roms/snes) once RetroArch is installed.",
+        uifont_draw(bold, 60, 180, WHITE, 28, tr("No games yet"));
+        draw_wrapped(font, tr("VitaOS shows the PS Vita games you have installed, PSP games in ux0:pspemu, "
+                              "and ROMs in ux0:roms/<console> (for example ux0:roms/snes) once RetroArch is installed."),
                      60, 222, W - 120, 18, 4, DIM);
-        draw_wrapped(font, "Get RetroArch and other emulators from the Store tab, copy your games over, "
-                           "then choose Settings > VitaOS > Find games again.", 60, 322, W - 120, 18, 3, DIM);
+        draw_wrapped(font, tr("Press R to reach the Store tab for RetroArch and other emulators, copy your games over, "
+                              "then choose Settings > VitaOS > Find games again."), 60, 334, W - 120, 18, 4, DIM);
         hint = "L R  tabs";
         return;
     }
@@ -1473,7 +1547,7 @@ void play_frame(const Input *in) {
             int del = (pressed & SCE_CTRL_SQUARE) != 0;
             const char *rom = rom_path(&S->games[sel]);
             int app = !strcmp(S->games[sel].kind, "app");
-            snprintf(toast, sizeof(toast), del && (rom || app) ? (app ? "Uninstalling %.60s" : "Deleted %.60s") : app ? "Moved %.60s to Apps" : "Removed %.60s", S->games[sel].title);
+            snprintf(toast, sizeof(toast), del && (rom || app) ? (app ? "Uninstalling %.60s" : "Deleted %.60s") : app ? tr("Moved to Apps") : "Removed %.60s", S->games[sel].title);
             hide_game(sys, sel, del);
             toast_frames = 150; toast_ok = 1;
             confirm = 0;
@@ -1727,7 +1801,7 @@ void play_frame(const Input *in) {
             draw_round_rect(120, 160, W - 240, 230, 22, RGBA8(30, 34, 46, 250));
             uifont_draw(bold, 150, 212, WHITE, 26, "Remove this game?");
             draw_wrapped(font, g->title, 150, 250, W - 300, 20, 2, DIM);
-            draw_hints(150, 312, app ? "X Move it to Apps" : "X Remove from the menu", WHITE, W - 150);
+            draw_hints(150, 312, app ? tr("X Move it to Apps") : "X Remove from the menu", WHITE, W - 150);
             draw_hints(150, 344, rom ? "[] Remove and delete the file from the Vita"
                                  : app ? "[] Remove and uninstall it from the Vita" : "[] (no file to delete)",
                        rom || app ? WHITE : FAINT, W - 150);

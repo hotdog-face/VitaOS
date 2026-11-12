@@ -368,8 +368,8 @@ static void plugin_action_do(void) {
                                             "Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.");
             return;
         }
-        snprintf(msg, sizeof(msg), "VitaOS adds its small plugin to %s and keeps a copy of the old file.\n"
-                                   "If the Vita ever starts badly, hold L while turning it on: that skips every plugin.", ps.config);
+        snprintf(msg, sizeof(msg), "VitaOS adds one line to the file below and keeps a copy of the old one. "
+                                   "If the Vita starts badly, hold L at power-on to skip all plugins.\n%s", ps.config);
         if (!ui_confirm("Start at power-on", msg)) return;
         if (sysint_install(err, sizeof(err)) < 0) { ui_message("Start at power-on", err); return; }
         flag_write(BOOT_OFF, 0);
@@ -393,8 +393,8 @@ static void plugin_action_do(void) {
         if (sysint_remove(err, sizeof(err)) < 0) ui_message("Remove the plugin", err);
         else ui_toast("Removed: the Vita starts as usual after a restart", C_OK);
     } else {
-        snprintf(msg, sizeof(msg), "It opens VitaOS when the Vita starts and after a game ends, and PS goes to VitaOS's Home.\n"
-                                   "It is in %s (ur0:tai/vitaos_ps.suprx). Hold L at power-on to skip all plugins once.", ps.config);
+        snprintf(msg, sizeof(msg), "Opens VitaOS at power-on and after games. Hold L at power-on to skip plugins once.\n"
+                                   "Your old config is kept as config.txt.before-vitaos, next to:\n%s", ps.config);
         ui_message("VitaOS plugin", msg);
     }
 }
@@ -612,7 +612,7 @@ static void activate(Row *r) {
     case A_PLUGIN: plugin_action(); break;
     case A_BOOT:
         flag_write(BOOT_OFF, r->on);
-        ui_toast(r->on ? "VitaOS will not open at power-on" : "VitaOS opens at power-on (needs the PS plugin)", r->on ? C_ACCENT : C_OK);
+        ui_toast(r->on ? "VitaOS will not open at power-on" : "VitaOS opens at power-on", r->on ? C_ACCENT : C_OK);
         break;
     case A_AUTOUPD:
         flag_write(AUTO_UPDATE, !r->on);

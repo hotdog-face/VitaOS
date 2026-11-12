@@ -635,6 +635,14 @@ static int boot_video(void) {
 
 int main(void) {
     ssl_threads_init();                      /* before any thread: OpenSSL 1.0.2 needs its locks (ssl_locks.c) */
+    /* VitaOS's own folders, before anything reads or saves there. Until 1.9.0
+     * nothing made user/ on a fresh install (only a few Settings switches
+     * did, when turned on), so favourites, recents, the weather town, sound
+     * levels and the "box art fetched" marker were silently never saved
+     * (issues 7 and 12; the developer's consoles had the folder already). */
+    sceIoMkdir("ux0:data", 0777);
+    sceIoMkdir("ux0:data/arcadehub", 0777);
+    sceIoMkdir("ux0:data/arcadehub/user", 0777);
     vita2d_init_advanced(4 * 1024 * 1024);   /* the per-frame vertex pool: the new visuals need more than 1 MB */
     vita2d_set_clear_color(C_BG);
     {                                            /* safe memory (crash.c) and the system language (lang.c) need it */
@@ -815,7 +823,11 @@ int main(void) {
             ui_end_frame();
             continue;
         }
-        if (library_rescan_wanted) { library_rescan_wanted = 0; library_rescan_quiet(); }   /* Apps > Show in Play */
+        if (library_rescan_wanted) {                 /* Apps > Show in Play */
+            library_rescan_wanted = 0;
+            library_rescan_quiet();
+            if (library_is_ours() == 0) play_reload();   /* a computer-built catalog still lists it: just read it again */
+        }
         library_poll(tab == T_PLAY);
         battery_tick();                                  /* Settings > Battery health measures time per charge */
         if (topup_added > 0 && tab != T_PLAY) {          /* not under the player's feet */

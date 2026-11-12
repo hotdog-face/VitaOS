@@ -178,7 +178,6 @@ THIS WEEK	QUESTA SETTIMANA
 played this week	giocato questa settimana
 COMMUNITY NEWS	NOTIZIE DALLA COMMUNITY
 See it in the Store	Vedi nello Store
-Welcome back	Bentornato
 Play a game, a film or an album and it shows up here.	Avvia un gioco, un film o un album e apparirà qui.
 Could not start	Impossibile avviare
 The game would not launch.	Il gioco non si è avviato.
@@ -256,7 +255,6 @@ Wi-Fi networks	Reti Wi-Fi
 Bluetooth devices	Dispositivi Bluetooth
 Manage storage	Gestisci archiviazione
 Update	Aggiorna
-Start at boot	Apri all'avvio
 Hide the bubbles	Nascondi le bolle
 Movies tab	Scheda Film
 Music tab	Scheda Musica
@@ -269,7 +267,6 @@ Put the Vita to sleep? Wi-Fi goes off too, so agents cannot reach it until you w
 Restart the Vita now? Anything unsaved in a suspended game is lost.	Riavviare la Vita? I progressi non salvati di un gioco sospeso andranno persi.
 Turn the Vita off? Hold the power button to turn it back on.	Spegnere la Vita? Tieni premuto il tasto di accensione per riaccenderla.
 VitaOS will not open at power-on	VitaOS non si aprirà all'avvio
-VitaOS opens at power-on (needs the PS plugin)	VitaOS si apre all'avvio (serve il plugin PS)
 Movies tab hidden	Scheda Film nascosta
 Movies tab shown	Scheda Film visibile
 Music tab hidden	Scheda Musica nascosta
@@ -283,7 +280,6 @@ PS opens the system's bubbles for 30 s	PS apre le bolle di sistema per 30 s
 The town on Home's weather widget	La città del widget meteo
 Biggest folders, and clean up crash dumps and logs	Cartelle più grandi e pulizia di dump e log
 Press X (or START anywhere in Settings)	Premi X (o START ovunque nelle Impostazioni)
-Open VitaOS at power-on (needs the PS plugin)	Apri VitaOS all'avvio (serve il plugin PS)
 VitaOS comes back when a game ends or the bubbles sit idle	VitaOS torna quando un gioco finisce o le bolle restano inattive
 Look through the card for new games	Cerca nuovi giochi sulla scheda
 For games that have none yet	Per i giochi che non ne hanno
@@ -313,7 +309,6 @@ Not installing this one	Non installabile
 Not a VPK	Non è un VPK
 Blocked on this Vita	Bloccato su questa Vita
 Installed: it is first in Apps	Installata: è la prima nelle App
-Installed	Installata
 Install	Installa
 Also needs	Richiede anche
 Data files: not installed automatically	File dati: non installati automaticamente
@@ -363,7 +358,6 @@ Loading your films…	Caricamento film…
 No movies yet	Ancora nessun film
 Removed from Liked songs	Rimosso dai preferiti
 Added to Liked songs	Aggiunto ai preferiti
-This song would not play	Questo brano non si riproduce
 Shuffle on	Casuale attivo
 Shuffle off	Casuale disattivo
 Delete song	Elimina brano
@@ -379,7 +373,6 @@ Loading your music…	Caricamento musica…
 No music yet	Ancora nessuna musica
 Songs you like show up here, newest first.	I brani che ti piacciono appaiono qui, i più recenti prima.
 Singles	Singoli
-That file would not play	Il file non si riproduce
 Adrenaline opens: pick the game there	Si apre Adrenaline: scegli lì il gioco
 Favourite ★	Preferito ★
 Add to favourites	Aggiungi ai preferiti
@@ -402,3 +395,51 @@ Snow	Neve
 Showers	Rovesci
 Snow showers	Rovesci di neve
 Thunderstorms	Temporali
+Start at power-on	Apri all'accensione
+Set up	Configura
+Needs taiHEN	Richiede taiHEN
+Set up by hand	Configura a mano
+VitaOS opens when the Vita starts, and comes back after games	VitaOS si apre all'accensione e torna dopo i giochi
+Open VitaOS when the Vita starts	Apri VitaOS all'accensione della Vita
+VitaOS plugin	Plugin di VitaOS
+Installed	Installato
+Update ready	Aggiornamento pronto
+This Vita has no tai/config.txt, so plugins are not set up here. Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.	Questa Vita non ha tai/config.txt, quindi i plugin non sono configurati. Installa HENkaku/Enso con taiHEN (vita.hacks.guide) e riprova.
+VitaOS adds one line to the file below and keeps a copy of the old one. If the Vita starts badly, hold L at power-on to skip all plugins.	VitaOS aggiunge una riga al file qui sotto e conserva una copia del vecchio. Se la Vita si avvia male, tieni premuto L all'accensione per saltare i plugin.
+Done. It starts working after a restart. Restart the Vita now?	Fatto. Funziona dopo un riavvio. Riavviare la Vita ora?
+VitaOS opens at power-on after the next restart	VitaOS si aprirà all'accensione dopo il prossimo riavvio
+VitaOS opens at power-on	VitaOS si apre all'accensione
+Update the plugin	Aggiorna il plugin
+Remove the plugin	Rimuovi il plugin
+What it does	Cosa fa
+Plugin updated: restart the Vita to use it	Plugin aggiornato: riavvia la Vita per usarlo
+VitaOS will no longer open at power-on or come back after games. The line is taken out of the config; a copy of the old file is kept.	VitaOS non si aprirà più all'accensione né tornerà dopo i giochi. La riga viene tolta dalla configurazione; resta una copia del vecchio file.
+Removed: the Vita starts as usual after a restart	Rimosso: la Vita si avvia come sempre dopo un riavvio
+Opens VitaOS at power-on and after games. Hold L at power-on to skip plugins once.	Apre VitaOS all'accensione e dopo i giochi. Tieni premuto L all'accensione per saltare i plugin una volta.
+Your old config is kept as config.txt.before-vitaos, next to:	Vecchia configurazione: config.txt.before-vitaos, accanto a:
+This config file is saved as UTF-16, which VitaOS will not edit. Nothing was changed: add the plugin line by hand.	Questo file di configurazione è salvato in UTF-16 e VitaOS non lo modifica. Non è stato cambiato nulla: aggiungi la riga del plugin a mano.
+This config file contains a stray zero byte, so VitaOS will not edit it. Nothing was changed: add the plugin line by hand.	Questo file di configurazione contiene un byte zero isolato, quindi VitaOS non lo modifica. Non è stato cambiato nulla: aggiungi la riga del plugin a mano.
+Could not keep a backup of the config file, so nothing was changed.	Impossibile conservare una copia del file di configurazione: non è stato cambiato nulla.
+Could not write the new config file, so nothing was changed.	Impossibile scrivere il nuovo file di configurazione: non è stato cambiato nulla.
+Could not put the config file back. It is safe under the name below: rename it to config.txt in VitaShell before restarting.	Impossibile ripristinare il file di configurazione. È al sicuro con il nome qui sotto: rinominalo in config.txt con VitaShell prima di riavviare.
+Could not replace the config file; the old one is back in place.	Impossibile sostituire il file di configurazione; il vecchio è di nuovo al suo posto.
+Could not read the config file.	Impossibile leggere il file di configurazione.
+This VitaOS package has no plugin inside.	Questo pacchetto di VitaOS non contiene il plugin.
+Could not copy the plugin to ur0:tai.	Impossibile copiare il plugin in ur0:tai.
+Show in Play	Mostra in Gioca
+Moved to Play	Spostato in Gioca
+Moved to Apps	Spostato in App
+X Move it to Apps	X Sposta in App
+Could not save that: the card may be full	Impossibile salvare: la scheda potrebbe essere piena
+The emulator for this game is not installed any more. Install it from the Store, then try again.	L'emulatore di questo gioco non è più installato. Installalo dallo Store e riprova.
+No games yet	Ancora nessun gioco
+VitaOS shows the PS Vita games you have installed, PSP games in ux0:pspemu, and ROMs in ux0:roms/<console> (for example ux0:roms/snes) once RetroArch is installed.	VitaOS mostra i giochi PS Vita installati, i giochi PSP in ux0:pspemu e le ROM in ux0:roms/<console> (ad esempio ux0:roms/snes) quando RetroArch è installato.
+Press R to reach the Store tab for RetroArch and other emulators, copy your games over, then choose Settings > VitaOS > Find games again.	Premi R fino alla scheda Store per installare RetroArch e altri emulatori, copia i tuoi giochi, poi scegli Impostaz. > VitaOS > Cerca di nuovo i giochi.
+Welcome to VitaOS	Ti diamo il benvenuto in VitaOS
+L and R switch tabs. Games are in Play, homebrew is in the Store.	L e R cambiano scheda. I giochi sono in Gioca, l'homebrew nello Store.
+To open VitaOS when the Vita starts: Settings > VitaOS > Start at power-on.	Per aprire VitaOS all'accensione: Impostaz. > VitaOS > Apri all'accensione.
+That song would not play: it needs to be an AAC .m4a	Questo brano non si riproduce: deve essere un .m4a in AAC
+That film would not play: it needs to be an H.264 .mp4 up to 960x544	Questo film non si riproduce: deve essere un .mp4 H.264 fino a 960x544
+Apple Lossless (ALAC) can't play on the Vita: convert it to AAC	Apple Lossless (ALAC) non si riproduce sulla Vita: convertilo in AAC
+This file's sound format can't play on the Vita: convert it to AAC	Il formato audio di questo file non si riproduce sulla Vita: convertilo in AAC
+VitaOS's player module did not load: reinstall VitaOS	Il modulo di riproduzione di VitaOS non si è caricato: reinstalla VitaOS

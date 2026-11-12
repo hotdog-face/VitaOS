@@ -32,6 +32,10 @@
 #define LINE "ur0:tai/vitaos_ps.suprx"
 #define MAX_CFG (64 * 1024)
 
+/* An error for the player: a fixed sentence (so it can be translated), then
+ * the file it is about on a line of its own. */
+static void fail(char *err, int max, const char *sentence, const char *path) { snprintf(err, max, "%s\n%s", sentence, path); }
+
 static int exists(const char *p) { SceIoStat st; return sceIoGetstat(p, &st) >= 0; }
 
 static char *slurp(const char *path, int *len) {
@@ -128,13 +132,11 @@ static int anywhere(const char *cfg) {
 static int config_ok(const char *cfg, int len, const char *path, char *err, int max) {
     const unsigned char *u = (const unsigned char *)cfg;
     if (len >= 2 && ((u[0] == 0xFF && u[1] == 0xFE) || (u[0] == 0xFE && u[1] == 0xFF))) {
-        snprintf(err, max, "%s is saved as UTF-16, which VitaOS will not edit. Nothing was changed: "
-                           "save it as plain text in VitaShell, or add the plugin line by hand.", path);
+        fail(err, max, "This config file is saved as UTF-16, which VitaOS will not edit. Nothing was changed: add the plugin line by hand.", path);
         return 0;
     }
     if (memchr(cfg, 0, len)) {
-        snprintf(err, max, "%s contains a stray zero byte, so VitaOS will not edit it (part of it could be lost). "
-                           "Nothing was changed: add the plugin line by hand.", path);
+        fail(err, max, "This config file contains a stray zero byte, so VitaOS will not edit it. Nothing was changed: add the plugin line by hand.", path);
         return 0;
     }
     return 1;
@@ -192,32 +194,31 @@ static int swap_config(const char *cfg_path, const char *old, int old_len, const
     int len = strlen(text);
     if (!exists(bak) && (write_all(bak, old, old_len) < 0 || !same_file(bak, old, old_len))) {
         sceIoRemove(bak);
-        snprintf(err, max, "Could not keep a backup of %s, so nothing was changed.", cfg_path);
+        fail(err, max, "Could not keep a backup of the config file, so nothing was changed.", cfg_path);
         return -1;
     }
     if (exists(prev) && sceIoRemove(prev) < 0) {             /* a finished swap's leftover */
-        snprintf(err, max, "Could not clear %s, so nothing was changed.", prev);
+        fail(err, max, "Could not write the new config file, so nothing was changed.", prev);
         return -1;
     }
     if (write_all(tmp, text, len) < 0 || !same_file(tmp, text, len)) {
         sceIoRemove(tmp);
-        snprintf(err, max, "Could not write the new %s, so nothing was changed.", cfg_path);
+        fail(err, max, "Could not write the new config file, so nothing was changed.", cfg_path);
         return -1;
     }
     if (sceIoRename(cfg_path, prev) < 0) {
         sceIoRemove(tmp);
-        snprintf(err, max, "Could not set %s aside, so nothing was changed.", cfg_path);
+        fail(err, max, "Could not write the new config file, so nothing was changed.", cfg_path);
         return -1;
     }
     if (sceIoRename(tmp, cfg_path) < 0 || !same_file(cfg_path, text, len)) {
         sceIoRemove(cfg_path);
         if (sceIoRename(prev, cfg_path) < 0) {
-            snprintf(err, max, "Could not put %s back. Your config is safe in %s: rename it to config.txt in "
-                               "VitaShell before restarting.", cfg_path, prev);
+            fail(err, max, "Could not put the config file back. It is safe under the name below: rename it to config.txt in VitaShell before restarting.", prev);
             return -1;
         }
         sceIoRemove(tmp);
-        snprintf(err, max, "Could not replace %s; the old one is back in place.", cfg_path);
+        fail(err, max, "Could not replace the config file; the old one is back in place.", cfg_path);
         return -1;
     }
     sceIoRemove(prev);                                        /* best effort: recover() tidies it otherwise */
@@ -288,14 +289,13 @@ int sysint_state(SysintState *s) {
 int sysint_install(char *err, int max) {
     const char *cfg_path = sysint_config_path();
     if (!cfg_path) {
-        snprintf(err, max, "This Vita has no tai/config.txt, so taiHEN plugins are not set up here. "
-                           "Follow vita.hacks.guide first, then try again.");
+        snprintf(err, max, "This Vita has no tai/config.txt, so plugins are not set up here. Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.");
         return -1;
     }
     if (copy_plugin(err, max) < 0) return -1;
     int len = 0;
     char *cfg = slurp(cfg_path, &len);
-    if (!cfg || len > MAX_CFG) { free(cfg); snprintf(err, max, "Could not read %s.", cfg_path); return -1; }
+    if (!cfg || len > MAX_CFG) { free(cfg); fail(err, max, "Could not read the config file.", cfg_path); return -1; }
     if (!config_ok(cfg, len, cfg_path, err, max)) { free(cfg); return -1; }
     if (listed(cfg)) { free(cfg); return 0; }            /* already there: only the file was refreshed */
     char *text = edit_config(cfg, 1);
@@ -312,7 +312,7 @@ int sysint_remove(char *err, int max) {
     if (!cfg_path) return 0;
     int len = 0;
     char *cfg = slurp(cfg_path, &len);
-    if (!cfg) { snprintf(err, max, "Could not read %s.", cfg_path); return -1; }
+    if (!cfg) { fail(err, max, "Could not read the config file.", cfg_path); return -1; }
     if (!config_ok(cfg, len, cfg_path, err, max)) { free(cfg); return -1; }
     if (!anywhere(cfg)) { free(cfg); return 0; }
     char *text = edit_config(cfg, 0);

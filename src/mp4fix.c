@@ -235,11 +235,20 @@ static int examine(FILE *f, Box *b, int *nb, unsigned char **moov_out, int song)
     *nb = n;
     int moov = find(b, n, "moov"), mdat = find(b, n, "mdat");
     if (moov < 0 || mdat < 0 || b[moov].size > MAX_MOOV) return MP4FIX_NOT_MP4;
+    /* Fragmented files (moof/sidx boxes, or an mvex in the index) keep their
+     * sample tables in the fragments, which this code does not rewrite:
+     * taking a track out or moving the index would break them. Left alone. */
+    if (find(b, n, "moof") >= 0 || find(b, n, "sidx") >= 0) return MP4FIX_NOT_MP4;
     int need = moov > mdat ? MP4FIX_INDEX_LAST : 0;
-    if (!song && !moov_out) return need;
     unsigned char *m = malloc((size_t)b[moov].size);
     if (!m) return MP4FIX_NOT_MP4;
     if (fseek(f, (long)b[moov].at, SEEK_SET) || fread(m, 1, (size_t)b[moov].size, f) != b[moov].size) { free(m); return MP4FIX_NOT_MP4; }
+    for (uint64_t at = header_len(m); at + 8 <= b[moov].size;) {
+        uint64_t size = be32(m + at);
+        if (size < 8 || at + size > b[moov].size) break;
+        if (!memcmp(m + at + 4, "mvex", 4)) { free(m); return MP4FIX_NOT_MP4; }
+        at += size;
+    }
     if (song) {
         uint64_t at = header_len(m);
         int sound = 0, pictures = 0;
