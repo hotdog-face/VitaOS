@@ -336,6 +336,48 @@ shows it under the title (`docs/screenshots-real-os/07-...png`). Seen on red.
   `livearea-no-confirmation` plugin (it finds the code by signature on 3.60
   to 3.74). Not included here; worth recommending beside this.
 
+**A second console: blue (2026-11-13), with Mitchell's OK, driven remotely.**
+
+Blue is a PCH-1000-family console on 3.65 with the same Codex set-up red had
+(`agent_autostart`, dev Home `MVZA00010`, bridge 8.5 with its kiosk on). No
+passcode. It answers at 192.168.1.35 with hardware address
+`68:14:01:ec:ec:e8`; the address on record for blue (`d8:85:ac:92:4c:28`,
+192.168.1.28) is some other device.
+
+- Before: `ux0:data/vita-agent/autostart.disabled` created,
+  `user/kiosk.on` renamed aside, `return.off` created (so Codex's autostart
+  and kiosk stand aside), config and old bridge files copied to the Mac
+  (`backups/blue-tai-before-vitaos-shell-20261113`,
+  `backups/blue-bridge-8.5-20261113`).
+- The experimental VitaOS was installed over blue's VitaOS (backup in
+  `~/.vita-agent/backups/blue`), and blue's bridge replaced with red's
+  8.6d2 through Agent Recovery (the bridge will not rename its own file).
+  With bridge 8.5 every upload took 33 s; with 8.6d2 under a second.
+- **Set up from Settings worked on blue as on red**: one line added under
+  `*main`, `config.txt.before-vitaos` byte-identical to the original, the
+  plugin identical to the package, kernel half and switch in place, the
+  menu app installed over Codex's old one (that step took about three
+  minutes on blue).
+- After a restart: plugin 0.6a at 4 s, lock-screen patches applied, VitaOS
+  up at 22 s, kernel half loaded at 28 s.
+- PS in Sound Shapes: menu up in 1.5 to 2 s, Circle resumes the same game
+  (0.6 s), Close game returns to VitaOS.
+- Differences from red:
+  - The first PS after the menu app was installed took about 35 s to show
+    the menu (also seen once on red): the system's first launch of a newly
+    installed app.
+  - Close game took 22 s and 36 s on blue (a few seconds on red): the
+    system takes that long to end Sound Shapes there. In the 36 s run the
+    menu was stuck writing `home.req` behind it and the plugin ended it by
+    force, which showed as a crash message (`C2-12828-1`) for the menu. The
+    menu now writes the note before closing the game, and only logs with
+    `user/menu-debug`. No crash message in the run after that.
+  - PS sent through blue's bridge did not close the menu (Circle did). On
+    red it does. Needs a real finger to tell whether that is the bridge's
+    injected PS or the console.
+  - Buttons sent through blue's bridge are dropped about every other time.
+  - Blue's clock reads January 2015.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -345,8 +387,7 @@ What the goal still lacks:
    animation into the menu.) Its bubbles are also reachable from VitaOS's
    "system home", on purpose.
 3. Notifications from VitaOS while a game runs (needs the background helper).
-4. A second console: everything has only ever run on red. (The Settings row
-   exists now; see above.)
+4. A console without Codex's tools: red and blue both have them.
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this

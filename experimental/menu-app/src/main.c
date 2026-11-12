@@ -28,6 +28,9 @@
  * that fails in system mode says where. Opened per line: a crash loses nothing. */
 #define DLOG "ux0:data/vitaos-pause.log"
 static void dlog(const char *fmt, ...) {
+    static int on = -1;
+    if (on < 0) { SceIoStat st; on = sceIoGetstat("ux0:data/arcadehub/user/menu-debug", &st) >= 0; }
+    if (!on) return;
     char line[200];
     va_list ap;
     va_start(ap, fmt);
@@ -273,9 +276,12 @@ int main(void) {
     }
     sceShellUtilUnlock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2);
     if (act == B_CLOSE) {
-        sceAppMgrDestroyOtherApp();                 /* the suspended game */
+        /* The note for vitaos_shell first, the game second: on blue this write
+         * sat for 27 s behind the game being torn down (same card), and the
+         * plugin ended the menu by force (2026-11-13). */
         SceUID fd = sceIoOpen("ux0:data/arcadehub/home.req", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
-        if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }   /* vitaos_shell opens Home once we are gone */
+        if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
+        sceAppMgrDestroyOtherApp();                 /* the suspended game */
         sceKernelDelayThread(250 * 1000);
         /* No launch from here: from a system-mode app both 0x20000 and
          * 0xFFFFF stop on Home's LiveArea page with a Start button (red,

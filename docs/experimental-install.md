@@ -1,7 +1,7 @@
 # VitaOS as the system: experimental build
 
-**Status: draft. Not released. Tested on one console only** (a PCH-1000 on
-firmware 3.65 with Ensō). Nothing here is part of the normal VitaOS download
+**Status: draft. Not released. Tested on two consoles**, both on firmware
+3.65 with Ensō and both with developer tools installed. Nothing here is part of the normal VitaOS download
 or its updater.
 
 This build makes VitaOS behave like the Vita's own system:
