@@ -40,6 +40,7 @@ typedef struct {
 } Input;
 
 void ui_init(void);
+void start_mark(const char *what);   /* start-up timing (main.c): one line per step in start.log */
 
 /* Where the main thread is, for the stall watchdog in main.c. */
 extern volatile const char *ui_where;

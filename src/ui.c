@@ -901,10 +901,21 @@ void ui_init(void) {
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
     sceMotionStartSampling();
     lang_init();                                     /* before anything is drawn */
+    start_mark(" ui: input, lang");
+    /* Something on screen as early as possible: on a warm start (back from a
+     * game) the background is drawn here, 3.5 s before the first real frame,
+     * so the wait is spent looking at VitaOS and not at LiveArea or black.
+     * A cold start has its own splash or boot video. */
+    ui_theme_load();
+    if (sceKernelGetSystemTimeWide() >= 180ULL * 1000000) {
+        for (int i = 0; i < 2; ++i) { ui_begin_frame(); ui_ambient(1.0f); ui_end_frame(); }
+        start_mark(" ui: early background");
+    }
     font = uifont_load("app0:assets/Inter-Regular.ttf");
     bold = uifont_load("app0:assets/Inter-Bold.ttf");
+    start_mark(" ui: two fonts");
     uifont_set_fallback(uifont_load("app0:assets/NotoSansJP-Subset.otf"));   /* kana and common kanji */
-    ui_theme_load();
+    start_mark(" ui: Japanese font");
 }
 
 #define REPEAT_DELAY_US 350000

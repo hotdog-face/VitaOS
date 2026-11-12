@@ -358,6 +358,19 @@ static int idle_ticks;
 static void idle_tick(void) {
     SceInt32 ids[8];
     if (sceKernelGetSystemTimeWide() < 60ull * 1000 * 1000) return;      /* power-on is boot_start's job */
+    /* 0.5b: a menu whose game has gone (ended from outside while the menu was
+     * up) would sit there for ever and keep VitaOS away: close it after 3 s. */
+    static int orphan_ticks;
+    if (app_running(MENU_TID) && !shell_off()) {
+        char t[16];
+        SceUID p;
+        int h;
+        if (running_game(t, &p, &h) || (menu_tid[0] && still_alive(menu_tid, menu_pid)) || (armed[0] && still_alive(armed, armed_pid))) orphan_ticks = 0;
+        else if (++orphan_ticks >= 12) {
+            orphan_ticks = 0;
+            slog("the menu's game is gone: closing the menu", menu_tid, sceAppMgrDestroyAppByName(MENU_TID));
+        }
+    } else orphan_ticks = 0;
     if (sceAppMgrGetRunningAppIdListForShell(ids, 8) > 0 || vitaos_running() || app_running(MENU_TID)) { idle_ticks = 0; return; }
     /* A game suspended behind LiveArea is not in that list (it closed one
      * that way on red, 2026-11-12): the game return_tick is following counts. */
@@ -568,7 +581,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.5a loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.5b loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and

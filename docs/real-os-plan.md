@@ -153,6 +153,50 @@ with Mitchell's OK for a kernel plugin).**
   title failed in the promoter (`0x80870005`, `0x80101114`); uninstall, then
   install, works.
 
+**VitaOS starts faster (2026-11-12/13).**
+
+`src/main.c` now writes `ux0:data/arcadehub/start.log` on every start: one
+line per start-up step, in milliseconds since the process began. Before
+(warm start on red, 119 Vita games, about 1,000 hidden entries):
+
+| Step | ms |
+|---|---|
+| process start to `main` | 310 |
+| graphics (`vita2d_init`) | 910 |
+| two UI fonts | 440 |
+| Japanese font | 360 |
+| crash check, sound | 270 |
+| game catalog (reading the lists) | 950 |
+| hidden games applied | 505 |
+| shelves and lists | 200 |
+| threads, tabs | 195 |
+| first frame | 655 |
+| **first thing on screen** | **4,900** |
+
+Changed:
+
+- **The background is drawn right after graphics start** on a warm start
+  (`ui_init`), at 1,350 ms. So 3.5 s of the wait is now spent looking at
+  VitaOS's own background, not LiveArea or black.
+- The hidden-games pass compares a hash of each title first: 505 ms to
+  130 ms.
+- First real frame: 4,400 ms (was 4,900).
+
+Measured end to end on red, a game ended from outside, warm:
+
+| | before | now |
+|---|---|---|
+| VitaOS's background on screen | 8.4 s | **4.5 s** |
+| full Home screen | 8.4 s | about 7.5 s |
+
+Left to cut, in order of size: the catalog read (950 ms, file reads from the
+card), graphics start (910 ms, mostly fixed), the fonts (800 ms; the
+Japanese one could load after the first frame), and about 2.4 s before
+`main` that belongs to the shell's own app launch.
+
+Also (plugin 0.5b): a menu whose game ended while it was open is closed
+after 3 s. One had been left open that way and kept VitaOS from coming back.
+
 What the goal still lacks:
 
 1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
@@ -168,7 +212,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.5a, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.5b, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

@@ -677,7 +677,25 @@ static int boot_video(void) {
     return 1;
 }
 
+/* Where the start-up time goes: start_mark("step") after each step, and one line per
+ * start in ux0:data/arcadehub/start.log (the last start only) once the first
+ * frame is out. Milliseconds since the process began. */
+static struct { const char *what; unsigned int ms; } t_marks[32];
+static int t_n;
+void start_mark(const char *what) {
+    if (t_n < 32) { t_marks[t_n].what = what; t_marks[t_n].ms = (unsigned int)(sceKernelGetProcessTimeWide() / 1000); ++t_n; }
+}
+static void t_write(void) {
+    char buf[1024];
+    int n = 0;
+    for (int i = 0; i < t_n && n < (int)sizeof(buf) - 48; ++i)
+        n += snprintf(buf + n, sizeof(buf) - n, "%5u ms  +%-5u %s\n", t_marks[i].ms, t_marks[i].ms - (i ? t_marks[i - 1].ms : 0), t_marks[i].what);
+    ui_save("ux0:data/arcadehub/start.log", buf, n, 0);
+    t_n = 32;                                    /* once */
+}
+
 int main(void) {
+    start_mark("main");
     ssl_threads_init();                      /* before any thread: OpenSSL 1.0.2 needs its locks (ssl_locks.c) */
     /* VitaOS's own folders, before anything reads or saves there. Until 1.9.0
      * nothing made user/ on a fresh install (only a few Settings switches
@@ -689,15 +707,18 @@ int main(void) {
     sceIoMkdir("ux0:data/arcadehub/user", 0777);
     vita2d_init_advanced(4 * 1024 * 1024);   /* the per-frame vertex pool: the new visuals need more than 1 MB */
     vita2d_set_clear_color(C_BG);
+    start_mark("vita2d");
     {                                            /* safe memory (crash.c) and the system language (lang.c) need it */
         SceAppUtilInitParam ip; SceAppUtilBootParam bp;
         memset(&ip, 0, sizeof(ip)); memset(&bp, 0, sizeof(bp));
         sceAppUtilInit(&ip, &bp);
     }
     ui_init();
+    start_mark("ui_init");
     sysint_recover();                            /* a config swap that power loss interrupted (sysint.c) */
     crash_init();                                /* the last run's stage, before this run writes its own */
     sfx_init();
+    start_mark("recover, crash, sfx");
     /* The splash and chime are for a cold boot only: Home also restarts every
      * time a game closes, and that should feel instant. */
     int cold = sceKernelGetSystemTimeWide() < 180ULL * 1000000;
@@ -715,6 +736,7 @@ int main(void) {
     }
     settings_on_release_ps(release_ps);
     settings_on_library(library_rescan_now, library_art_now);
+    start_mark("splash, events, power");
     /* VitaOS finds the games on the card. The first time there is nothing to
      * show yet, so it looks behind a progress screen; afterwards it looks again
      * in the background and Play reloads if anything changed. */
@@ -736,18 +758,25 @@ int main(void) {
     int lib_ours = library_is_ours();
     if (lib_ours < 0) library_first_scan();
     play_init();                 /* catalog, lists, the agent remote, launch requests */
+    start_mark("play_init");
     playtime_init();             /* the time of a game Home launched before it closed */
+    start_mark("playtime_init");
     if (lib_ours > 0) library_rescan_start();
     /* Networking first: lib_topup asks for the Wi-Fi state straight away, and
      * a call into SceNetCtl while the module was still loading jumped to
      * address 0 (issue 12, dump 1: thread lib_topup, PC 0). */
     int net = net_up();
+    start_mark("net_up");
     topup_start();
+    start_mark("topup_start");
     files_init();
+    start_mark("files_init");
     if (net >= 0) downloads_init();
     if (net >= 0) weather_init();
     if (net >= 0) update_init();                     /* a newer VitaOS? at most once a day */
+    start_mark("downloads, weather, update");
     news_init();                                     /* r/vitahacks for the Home row; waits for Wi-Fi itself */
+    start_mark("news_init");
     SceUID pw = sceKernelCreateThread("home_prewarm", prewarm, 0x10000100, 0x8000, 0, 0, NULL);
     if (pw >= 0) sceKernelStartThread(pw, 0, NULL);
     SceUID wd = sceKernelCreateThread("home_watchdog", watchdog, 0x10000100, 0x4000, 0, 0, NULL);
@@ -768,10 +797,12 @@ int main(void) {
     }
     tabs_build();
     if (vis_index(tab) < 0) tab = T_HOME;             /* the last tab was hidden since */
+    start_mark("threads, lock, tabs");
     Input in;
     memset(&in, 0, sizeof(in));
     for (;;) {
         ++frame_no;
+        if (frame_no == 2 || frame_no == 3 || frame_no == 30) { start_mark(frame_no == 2 ? "first frame drawn" : frame_no == 3 ? "second frame" : "30 frames"); if (frame_no == 30) t_write(); }
         if (frame_no % 60 == 0) tabs_build();         /* Settings may have hidden or shown one */
         {                                        /* frame timing, logged by the watchdog; at the top so */
             static SceUInt64 last;              /* early-out paths (search) are measured too */
