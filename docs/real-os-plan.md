@@ -8,6 +8,47 @@ power-on, what PS returns to from any game, and what owns the in-game menu,
 notifications and the lock screen. LiveArea keeps running underneath (it is
 `SceShell`, which the Vita can't run without) but is never seen.
 
+## Where it stands (2026-11-12)
+
+Working on red today, with Codex's dev bridge doing the shell-side part:
+
+- **PS in a retail game opens a VitaOS menu over it**: Resume, Volume,
+  Brightness, Close game (`experimental/menu-app`, title `VTOSPAUSE`, a
+  16 MB system-mode app using vita2d). Resume goes back into the same game
+  process. Screenshot: `docs/screenshots-real-os/01-...png`.
+- A system-mode app runs beside a retail game with no hang (see "First run
+  on red" below for what the earlier hang really was).
+
+Built, not yet on red (needs the first `tai` change and a restart):
+
+- `experimental/shell/vitaos_shell.suprx` 0.1: the same jobs in VitaOS's own
+  user plugin, with no dev bridge: VitaOS at power-on as soon as the
+  start-up app is done, no lock screen, PS opens the menu, every game ends
+  in VitaOS.
+
+What changed in the design because of what red showed:
+
+- **VitaOS itself cannot stay resident beside a game.** A suspended game
+  keeps the GPU memory (CDRAM) and the contiguous pool; an app beside it gets
+  about 16 MB (ElevenMPV-A's real numbers, read from its executable on red:
+  authority `0x2F00000000000001`, attribute 2, memory `0x4000` KB; `param.sfo`
+  CATEGORY `gdc`, ATTRIBUTE `0x1089088`). VitaOS uses a 96 MB heap. So the
+  split is: **a small menu app beside the game, and the full VitaOS reopened
+  when the game ends.** "Fast switching" then means making VitaOS start
+  fast, not keeping it alive.
+- The menu app as a separate system-mode app works, so the kernel + PAF
+  overlay (target 2, step 2) is no longer needed for a first version, and
+  phase 3's kernel module can wait. The menu covers the whole screen; it is
+  not drawn over the live game picture.
+- A system-mode app cannot open Home itself: both launch flags stop on
+  Home's LiveArea page with a Start button. The shell plugin does it
+  (`home.req`).
+- `sceAppMgrLaunchAppByName2ForShell` answers "Could not find the
+  application" for the menu app; `sceAppMgrLaunchAppByUri(0x20000, ...)`
+  from inside SceShell opens it directly.
+- A first install of a new title ID works hands-free through Agent
+  Recovery's installer (`i-ha/vita.py install`).
+
 ## Rules for this track
 
 - **Red only.** Blue is never touched.
