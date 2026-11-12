@@ -46,7 +46,41 @@ of Codex's `agent_autostart.suprx`. Its log (`ux0:data/arcadehub/boot.log`):
   plugin's first-launch wait; the rest is VitaOS starting.
 - Not checked: wake from sleep.
 
-Red is left in this state. Undo: restore `ur0:tai/config.txt` from
+**Later the same evening (plugin 0.2, menu update, lock screen):**
+
+- Red restarts hands-free now: a remote restart came back with the bridge
+  answering in 30 s (no lock screen in the way; VitaOS loads the bridge).
+  Mitchell allowed remote restarts for this work.
+- **PS toggles the menu.** The menu holds the PS lock, so PS no longer drops
+  to LiveArea behind it; the plugin passes the press on (`menu.ps`) and the
+  menu resumes the game (same pid before and after).
+- **VitaOS comes back whenever nothing is running** (5 s on LiveArea with no
+  game, no VitaOS, no system app): 9.8 s after VitaOS itself was closed.
+- Close game to VitaOS on screen: 6.4 s (that run still included VitaOS's
+  cold-start splash; the earlier warm run was 9.4 s before the trims).
+- **VitaOS's own lock screen** (`src/main.c`, only with
+  `user/lockscreen.on`): time, date, battery, any button opens it. Shown at
+  power-on; seen on red (`docs/screenshots-real-os/03-...png`). The wake-from-
+  sleep path is written (power callback) but not tested: nothing can wake red
+  remotely. It is a cover, not security.
+- Blind button presses sent too fast get dropped: one "Close game" test
+  pressed Resume instead. Leave about a second between presses.
+
+What the goal still lacks:
+
+1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
+   shows).
+2. LiveArea still flashes for about half a second when PS opens the menu,
+   and its bubbles are reachable from VitaOS's "system home". Hiding them is
+   Codex's kiosk, which lives in the dev bridge and is off now because it
+   duplicates the plugin's jobs.
+3. Notifications from VitaOS while a game runs (needs the background helper).
+4. An install and uninstall row in Settings, so this is not a hand-made
+   set-up on one console. Until then it exists only on red.
+5. The menu: Wi-Fi, screenshot.
+
+Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
+branch as `VITAOS001`, and `vitaos_shell.suprx` 0.2). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

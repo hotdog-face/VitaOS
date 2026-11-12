@@ -151,6 +151,7 @@ static void release_ps(void);
  * from waking the Vita out of sleep (playtest 2026-09-25). So the lock goes
  * as the console suspends and comes back once it is awake again. */
 static volatile int ps_relock;
+static volatile int woke;
 
 static int power_cb(int notify_id, int notify_count, int info, void *common) {
     (void)notify_id; (void)notify_count; (void)common;
@@ -159,6 +160,7 @@ static int power_cb(int notify_id, int notify_count, int info, void *common) {
         ps_relock = 1;
     }
     if (info & (SCE_POWER_CB_SYSTEM_RESUME | SCE_POWER_CB_APP_RESUME)) ps_relock = 2;
+    if (info & SCE_POWER_CB_SYSTEM_RESUME) woke = 1;       /* out of sleep: the lock screen, if it is on */
     return 0;
 }
 
@@ -327,6 +329,47 @@ static int net_up(void) {
     if (rc < 0 && rc != (int)0x80410110) return rc;   /* already initialised is fine */
     rc = sceNetCtlInit();
     return rc < 0 && rc != (int)0x80412102 ? rc : 0;
+}
+
+/* EXPERIMENTAL (docs/real-os-plan.md): VitaOS's own lock screen, shown at
+ * power-on and when the Vita wakes, once the system's has been patched out
+ * by vitaos_shell. Only with user/lockscreen.on. The time, the date and the
+ * battery; any button or a tap opens it. It is a cover, not security: there
+ * is no passcode. Auto-standby still runs behind it. */
+#define LOCKSCREEN_ON "ux0:data/arcadehub/user/lockscreen.on"
+static void lock_screen(void) {
+    SceIoStat st;
+    if (sceIoGetstat(LOCKSCREEN_ON, &st) < 0) return;
+    static const char *const DAY[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+    static const char *const MON[] = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
+    Input in;
+    memset(&in, 0, sizeof(in));
+    float out = 0;
+    int leaving = 0;
+    for (int f = 0; f < 60 * 60 * 10; ++f) {           /* ten minutes at most; standby comes first */
+        ui_read_input(&in);
+        if (f > 20 && (in.pressed || in.tapped)) leaving = 1;
+        if (leaving && (out += 0.12f) >= 1) break;
+        SceDateTime t;
+        sceRtcGetCurrentClockLocalTime(&t);
+        char clock[16], date[48], batt[32];
+        if (ui_clock_24h()) snprintf(clock, sizeof(clock), "%d:%02d", t.hour, t.minute);
+        else snprintf(clock, sizeof(clock), "%d:%02d", t.hour % 12 ? t.hour % 12 : 12, t.minute);
+        int dow = sceRtcGetDayOfWeek(t.year, t.month, t.day);
+        snprintf(date, sizeof(date), "%s, %s %d", DAY[dow >= 0 && dow < 7 ? dow : 0], MON[t.month >= 1 && t.month <= 12 ? t.month - 1 : 0], t.day);
+        snprintf(batt, sizeof(batt), "%d%%%s", scePowerGetBatteryLifePercent(), scePowerIsBatteryCharging() ? "  charging" : "");
+        unsigned int a = (unsigned int)(255 * (1 - out));
+        ui_begin_frame();
+        ui_ambient(1.0f);
+        int y = (int)(-40 * out);                      /* slides up as it opens */
+        text(bold, W / 2 - text_w(bold, 120, clock) / 2, 270 + y, (C_TEXT & 0x00FFFFFF) | a << 24, 120, clock);
+        text(font, W / 2 - text_w(font, 26, date) / 2, 320 + y, (C_TEXT & 0x00FFFFFF) | a << 24, 26, date);
+        text(font, W / 2 - text_w(font, 18, batt) / 2, 360 + y, (C_FAINT & 0x00FFFFFF) | (unsigned int)(a * 0.6f) << 24, 18, batt);
+        const char *hint = "Press any button";
+        float pulse = 0.55f + 0.45f * ui_pulse();
+        text(font, W / 2 - text_w(font, 18, hint) / 2, H - 60, (C_FAINT & 0x00FFFFFF) | (unsigned int)(a * pulse) << 24, 18, hint);
+        ui_end_frame();
+    }
 }
 
 /* Start-up: the wordmark fades up while an accent line draws out from the
@@ -713,6 +756,8 @@ int main(void) {
     if (loader >= 0) sceKernelStartThread(loader, 0, NULL);
 
     if (cold && !boot_video_played) for (int f = 0; f <= 18; ++f) splash(1, f / 18.0f);   /* fade out */
+    if (cold) lock_screen();                     /* experimental: VitaOS's own, with user/lockscreen.on */
+    woke = 0;
     /* Back to the tab you last used (Home the first time). */
     int tab = T_HOME, open_music = 0;
     SceUID lt = sceIoOpen(LAST_TAB, SCE_O_RDONLY, 0);
@@ -735,6 +780,7 @@ int main(void) {
             last = now;
             cur_tab = tab;
         }
+        if (woke) { woke = 0; lock_screen(); }
         STAGE("input");
         ui_read_input(&in);
         demo_poll();                             /* a scripted tour for recordings (demo.req) */
