@@ -161,9 +161,20 @@ What this changes:
   The shell plugin will need the gate patched or tapped.
 - `launch PCSE00120` timed out and left the game on its Start gate too.
 
-Not known yet: whether SceShell crashed (look for a new `psp2core` once red
-is back), whether the same run freezes with the bridge not loaded, and
-whether it freezes with the LowMemMode hook on.
+After run 4 (red back up about 21:20 UTC):
+
+- It was a whole-console hang, not only SceShell: the picture stayed, the
+  PS light blinked blue, and a normal Power hold did nothing. Mitchell got
+  it back with the long forced power-off. **So the recovery for this freeze
+  is a 30 s Power hold, not 10 s.** Ping still answered while it hung.
+- No new crash dump (still 32, newest unchanged). Nothing was logged at the
+  moment of the hang; the last lines before it are from the `launch` of the
+  game: "closed last game", "closing running app", "lowmem: applying 0 0".
+- After the restart the kiosk is on again and Home in front is `MVZA00010`.
+
+Not known yet: whether the same run freezes with the bridge not loaded, and
+whether it freezes with the LowMemMode hook on. Run 4 is not repeated
+remotely until that is known, because each freeze costs a forced power-off.
 
 Codex's lessons that this plan keeps:
 
@@ -422,7 +433,7 @@ wants one.
 
 | Change | Worst case | Recovery | Needs approval |
 |---|---|---|---|
-| New app `VTOSX0001` | SceShell freeze while testing | hold Power 10 s | install: no; restarts: yes |
+| New app `VTOSX0001` | whole-console hang while testing (seen 2026-11-12) | hold Power 30 s; if it shows Safe Mode, "Restart" | install: no; restarts: yes |
 | `*main` line (`vitaos_shell.suprx`) | SceShell crash at boot | hold L, restore config | yes |
 | NoLockScreen patches | passcode skipped | plugin checks for a passcode; remove line | part of the above |
 | `*KERNEL` line (`vitaos_k.skprx`) | no boot, or crash | hold L, restore config | yes, risk restated |
