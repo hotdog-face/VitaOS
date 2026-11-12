@@ -106,16 +106,21 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
     original, the plugin file matched the package, and no temp files were left.
   - Remove from the same row gave back a `config.txt` byte-identical to the
     original.
-  - **The restart in between did not show VitaOS opening at power-on.** Red
-    went dark (black screen, PS light on, off the network) for 22 minutes
-    until a button press. It then came up in Codex's dev Home, which red's
-    own `agent_autostart.suprx` opens. There was no crash dump and no trace
-    of the public VitaOS starting. Red wrote nothing during those 22 minutes,
-    so the logs can't say whether the plugin, the competing autostart or
-    red's own restart behaviour was the cause.
-  - Still open: whether a restart leaves red dark without the plugin (a
-    control restart), and a power-on test on a Vita that doesn't have Codex's
-    autostart.
+  - **The restart in between could not show VitaOS opening at power-on.**
+    Red went dark (black screen, PS light on, off the network) until a
+    button press, then came up in Codex's dev Home.
+  - **A control restart without the plugin went dark the same way,** so the
+    plugin is not the cause. After any restart red stops at the lock screen
+    and its panel goes off within about a minute. Codex's bridge only clears
+    the lock screen in agent mode, and Home waits behind the lock screen
+    before it loads the bridge.
+  - One hint that the plugin did act: with it installed, Codex's autostart
+    needed three tries to get its own Home running; without it, one. That
+    fits VitaOS already being open, but it isn't proof.
+  - **The one test that would prove it:** set it up again on red, restart,
+    and have someone swipe the lock screen away within about 20 seconds of
+    the logo. The bridge log then names which Home opened first
+    (`VITAOS001` or `MVZA00010`).
 - **Not verified:** the Home-music static fix. It needs someone to listen;
   a screenshot can't show it, and red's volume is at 0.
 - Also not checked on hardware: the crash-report card (red has crash reports
