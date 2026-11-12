@@ -50,7 +50,8 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
 ## Your games, organised your way
 
 - Apps > Triangle > **Show in Play** moves a homebrew game into Play;
-  START on a Play game > **Move it to Apps** moves it back. (#9)
+  START on a Play game > **Move it to Apps** moves it back, as often as you
+  like. (#9)
 - Adrenaline bubbles count as games, and PSP and PS1 games start through
   their own bubble when RetroFlow's launcher isn't installed. Before, they
   only opened Adrenaline. (#9)
@@ -58,6 +59,15 @@ Not released yet. Tested on red (PCH-2000) on 2026-11-11: see "Tested on hardwar
   when those emulators are installed. (#6)
 
 ## Fixes
+
+- **Settings, favourites and recent games are saved on a fresh install.**
+  Nothing created the folder VitaOS keeps them in until you happened to turn
+  on certain Settings switches. Until then favourites, recents, the weather
+  town and sound levels were lost at every restart, and box art was fetched
+  again each time. (#7, #12, #1)
+- All the new text is translated into Español, Português, Français, Deutsch,
+  Italiano, 日本語 and Русский. Dialog messages now show their translation
+  (before, only titles and buttons did), and Japanese text wraps properly.
 
 - Buttons no longer stop working after a while; before, only touch kept
   working until VitaOS restarted. (#1, #19)
@@ -83,6 +93,12 @@ Screenshots are in `docs/screenshots-1.9.0-red/`.
   full screen, and as the dimmed preview behind the posters.
 - **Play's screensaver reel** started after 30 s idle and played a game's
   preview video. This is the code that crashed in two of the #12 dumps.
+- **Move it to Apps and Show in Play, both ways:** a game moved to Apps left
+  Play (118 games) without being hidden and appeared in Apps; Show in Play
+  brought it back (119).
+- The new Settings rows in Japanese (`10-settings-japanese.png`). The
+  translated dialogs were checked by measuring every language with the real
+  fonts (all fit); they weren't opened on the console.
 - Music opens in about 3 s with 2,106 songs.
 - Settings > VitaOS shows "Start at power-on: Set up", which is correct:
   red's `ur0:tai/config.txt` has no VitaOS line. The set-up flow itself

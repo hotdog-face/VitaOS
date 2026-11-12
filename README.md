@@ -76,6 +76,10 @@ then asks to restart. From then on:
 
 To undo it, use the same row: **VitaOS plugin > Remove the plugin**.
 
+This needs plugins to be loaded when the Vita powers on, which is what
+**Ensō** does. With h-encore or HENkaku without Ensō, plugins only load after
+you run the exploit, so VitaOS opens by itself only after that.
+
 **If the Vita ever starts badly,** hold **L** while turning it on: that skips
 every plugin for that start. Your old plugin list is saved next to it as
 `tai/config.txt.before-vitaos`.
@@ -96,7 +100,8 @@ If there is already a `*main` line, add only the second line under it, then rest
 
 ### Updating
 
-VitaOS checks for a new version once a day and says so on Home. Then go to
+VitaOS checks for a new version once a day and shows a short notice when one
+is out. Then go to
 **Settings > VitaOS > Update** (or press START anywhere in Settings): it
 downloads, installs and reopens by itself. Your games, settings and
 favourites stay.

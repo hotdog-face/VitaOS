@@ -58,10 +58,12 @@ For #19, which also mentions box art and dead buttons, add:
 > The weather and store threads you saw in the dumps were bystanders. They
 > now get much larger stacks anyway.
 >
-> Favourites not persisting and box art re-downloading: I couldn't reproduce
-> those from the code alone. Could you say whether the favourites were games
-> from the PS Vita, PSP or a retro console? And does box art download again
-> every time even when the pictures are already showing?
+> Favourites not persisting and box art re-downloading turned out to be one
+> bug, and you were right about both. On a fresh install nothing created the
+> folder VitaOS saves its own settings in (`ux0:data/arcadehub/user`), so
+> favourites, recent games and the "box art already fetched" marker were
+> never written. It only appeared if you happened to turn on certain
+> switches in Settings. 1.9.0 creates it at start.
 
 ## #15 and #8: m4a files won't play
 
@@ -120,11 +122,13 @@ For #19, which also mentions box art and dead buttons, add:
 >
 > About the Music and Movies tabs: hiding them in Settings > VitaOS hides the
 > tabs and their tiles on Home (an older version didn't save settings, see
-> #7). If something still shows after hiding them, what is it exactly?
+> #7; 1.9.0 fixes the cause, a settings folder that was never created on a
+> fresh install). If something still shows after hiding them, what is it?
 
 ## #5: VitaOS auto-update
 
-> VitaOS checks for a new version once a day and tells you on Home. The
+> VitaOS checks for a new version once a day and shows a short notice when
+> one is out; Settings > VitaOS then has an Update row. The
 > update itself is one press: Settings > VitaOS > Update, or START anywhere in
 > Settings. It downloads, installs and reopens by itself. I've kept the
 > install step manual on purpose, so an update never interrupts you
@@ -145,7 +149,8 @@ For #19, which also mentions box art and dead buttons, add:
 >    copies (since 1.4.1). 1.9.0 also loads the icons it couldn't decode before.
 > 2. **Buttons stop working, only touch works:** fixed. VitaOS ignored the
 >    buttons after another controller plugin changed the timing data it reads.
-> 3. **Weather not showing:** fixed with the settings-saving fix in #7.
+> 3. **Weather not showing:** fixed in 1.9.0. On a fresh install VitaOS never
+>    created the folder it saves settings in, so your town wasn't kept.
 > 4. **24-hour clock:** VitaOS now follows the Vita's own Time Format setting
 >    (Settings > Date & Time).
 >
@@ -175,6 +180,7 @@ For #19, which also mentions box art and dead buttons, add:
 
 ## #18: feature request (search, update all)
 
-> Both are in now: SELECT searches from anywhere (games and the Store), and
+> Both have been in since 1.7.0: SELECT searches from anywhere (games and
+> the Store), and
 > the Store's updates tile on Home has **Update all**. Settings > VitaOS >
 > Update apps automatically updates them while the Vita charges.
