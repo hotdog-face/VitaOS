@@ -834,3 +834,39 @@ It does not serve this goal; it is the same road as target 5.
   Codex tried Linux.
 - The most it could ever be here is a "Boot Android" tile inside VitaOS,
   once that project boots at all. Worth a look again when it does.
+
+## Persona 4 Golden and Quake crashing on red (looked at 2026-11-13)
+
+Not part of this project; red's own problem. No fix yet.
+
+**Persona 4 Golden (`PCSE00120`)**
+
+- Reproduced remotely: it starts, shows "Starting the game in Offline
+  Mode", and about half a minute later the system reports `C2-12828-1`.
+- With its save folder in place the system first warns "You cannot earn
+  trophies in this application" (the save was made under another account).
+  With the save folder moved aside there is no warning, and it crashes at
+  the same point. So the save is not the cause. The save folder was put
+  back; the empty one the test run made was deleted.
+- `data/data.cpk` is 2,009,975,112 bytes, which matches the 1.87 GB a
+  modding wiki gives for that file, so the dump is probably whole. No
+  byte-exact reference was found.
+- Left to try, in order: `fd_fix.skprx` out of the config (one source says
+  not to use it with rePatch, and red loads both; that is a `*KERNEL` line,
+  so it needs Mitchell's OK and a restart); the game's trophy data in
+  `ur0:user/00/trophy`; a fresh dump.
+
+**Quake (`QUAK00001`)**
+
+- Crashes in `SceGxm` on its main thread after its console text.
+- No expansion folders and no settings files in `ux0:data/Quake` (two known
+  causes of start-up crashes in vitaQuake), only the shareware `pak0.pak`.
+- `ur0:data/libshacccg.suprx`, which current vitaGL homebrew needs, is not
+  on red. Whether this build needs it is not known.
+- Left to try: install the current vitaQuake from VitaDB; add
+  `libshacccg.suprx`.
+
+Both went through `launch` in the dev bridge, which hid one thing for a
+while: a system question on screen ("cannot earn trophies", "the following
+application will close") makes the launch time out, as it did the first
+night.
