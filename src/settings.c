@@ -481,8 +481,11 @@ static void shell_action_do(void) {
                                    "If the Vita starts badly, hold L at power-on.\n%s", st.config);
         if (!ui_confirm(title, msg)) return;
         if (sysint_shell_install(err, sizeof(err)) < 0) { ui_message(title, err); return; }
-        int krc = sh_copy(SH_K_SRC, SH_K_DST);
-        if (krc >= 0) flag_write(SH_K_ON, 1);
+        /* No kernel module any more: since plugin 0.8 the system's own PS lock,
+         * held by the plugin, keeps LiveArea away, and the plugin reads PS
+         * itself. A kernel.on left by an older set-up is switched off. */
+        int krc = 0;
+        flag_write(SH_K_ON, 0);
         int mrc = 0;
         if (!sh_menu_current()) mrc = sh_menu_install();   /* the in-game menu: installed like any app */
         flag_write(BOOT_OFF, 0);
@@ -517,7 +520,7 @@ static void shell_action_do(void) {
     }
     if (act[k] == 1) {
         int rc = sysint_shell_update_file(err, sizeof(err));
-        if (rc >= 0 && sh_exists(SH_K_SRC)) rc = sh_copy(SH_K_SRC, SH_K_DST);
+        flag_write(SH_K_ON, 0);                       /* older set-ups loaded a kernel module; not needed since 0.8 */
         int mrc = rc >= 0 && !sh_menu_current() ? sh_menu_install() : 0;
         if (rc < 0) ui_message(title, err[0] ? err : "Could not copy the kernel module.");
         else if (mrc < 0) { snprintf(msg, sizeof(msg), "The plugin is updated, but the menu app could not be (0x%08X). Close any game and try again.", mrc); ui_message(title, msg); }

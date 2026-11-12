@@ -28,6 +28,7 @@
 #include <psp2/kernel/modulemgr.h>
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/shellutil.h>
 
 static volatile int running = 1;
 static SceUID thread = -1;
@@ -261,6 +262,46 @@ static void menu_note_press(void) {
 
 static void menu_open(void);
 
+/* ---------- 0.8: the system's PS lock while a game is in front ----------
+ * The shell learns of a PS press by more than the controller reads the
+ * kernel half filters (seen on red, 2026-11-13: with nothing opened after a
+ * hidden press, the shell still went to LiveArea). The dev bridge kept it
+ * away with the system's own lock, taken from inside SceShell; this does the
+ * same. Off with user/pslock.off. The lock is
+ * dropped whenever no game is in front, the menu app is up (it holds its
+ * own), or a hidden press failed to open anything. */
+static int ps_lock_on, ps_lock_events;
+static void ps_lock_set(int on) {
+    if (on == ps_lock_on) return;
+    if (!ps_lock_events) { sceShellUtilInitEvents(0); ps_lock_events = 1; }
+    int rc = on ? sceShellUtilLock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2) : sceShellUtilUnlock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2);
+    if (rc >= 0) ps_lock_on = on;
+    if (file_exists(USER "shell-debug")) slog(on ? "ps lock on" : "ps lock off", 0, rc);
+}
+
+/* With the lock held and no kernel half, PS comes straight to this plugin's
+ * own read: a press shorter than half a second opens the menu the moment it
+ * is let go (the shell is not going anywhere, so there is nothing to wait
+ * for); a longer one is the shell's quick menu. */
+static SceUInt64 ps_lock_press;
+static void menu_open(void);
+static void ps_lock_step(int ps_down) {
+    if (!ps_lock_press || ps_down) return;
+    SceUInt64 held = sceKernelGetSystemTimeWide() - ps_lock_press;
+    ps_lock_press = 0;
+    int h;
+    if (held >= 500 * 1000 || app_running(MENU_TID) || !running_game(menu_tid, &menu_pid, &h)) return;
+    menu_open();
+}
+
+static void ps_lock_tick(void) {
+    char t[16];
+    SceUID p;
+    int h;
+    ps_lock_set(!file_exists(USER "pslock.off") && !ps_failed && !shell_off() && !file_exists(USER "menu.off")
+                && !app_running(MENU_TID) && running_game(t, &p, &h) && !h);
+}
+
 /* Every 250 ms: is a game in front of a shell that should not see PS? */
 static void ps_arm_tick(void) {
     char t[16];
@@ -461,6 +502,7 @@ static void kernel_step(void) {
     if (c < 0) return;
     if ((unsigned int)c != vk_seen) {                      /* a short press was hidden from the shell */
         vk_seen = (unsigned int)c;
+        if (file_exists(USER "ps-noopen")) { slog("test: a short PS was counted, nothing opened", t, 0); return; }
         if (arm && !app_running(MENU_TID)) {
             sceClibStrncpy(menu_tid, t, 15);
             menu_tid[15] = 0;
@@ -489,7 +531,7 @@ static int watch(SceSize args, void *argp) {
     SceCtrlData pads[16];
     while (running) {
         sceKernelDelayThread(50 * 1000);
-        if (++loops % (TICK_MS / 50) == 0) { return_tick(); home_req_tick(); idle_tick(); ps_arm_tick(); }
+        if (++loops % (TICK_MS / 50) == 0) { return_tick(); home_req_tick(); idle_tick(); ps_arm_tick(); ps_lock_tick(); }
         int n = sceCtrlPeekBufferPositive2(0, pads, 16);
         if (n <= 0) continue;
         unsigned int down = 0;
@@ -513,7 +555,8 @@ static int watch(SceSize args, void *argp) {
             if (app_running(MENU_TID)) {                    /* PS in the menu: it resumes the game */
                 SceUID fd = sceIoOpen("ux0:data/arcadehub/menu.ps", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
                 if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
-            } else menu_note_press();
+            } else if (ps_lock_on && vk_state != 1) ps_lock_press = sceKernelGetSystemTimeWide();   /* see ps_lock_step */
+            else menu_note_press();
         }
         if (down && !was && file_exists(USER "shell-debug")) {
             char t[16] = "-";
@@ -522,6 +565,7 @@ static int watch(SceSize args, void *argp) {
             slog("PS edge: game/home/vitaos/menu bits, tid", t, g | h << 1 | vitaos_running() << 2 | app_running(MENU_TID) << 3 | (menu_at ? 16 : 0) | ps_armed << 5);
         }
         was = pads[n - 1].buttons & 0x10000;
+        ps_lock_step(was != 0);
         kernel_step();
         ps_hide_step(was != 0);
         menu_step(was != 0);
@@ -609,7 +653,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.6a loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.8a loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and
@@ -661,6 +705,7 @@ int module_stop(SceSize args, void *argp) {
     (void)args; (void)argp;
     running = 0;
     ps_armed = 0;
+    ps_lock_set(0);
     for (int i = 0; i < NHOOK; ++i) if (ctrl_uid[i] > 0) taiHookRelease(ctrl_uid[i], ctrl_ref[i]);
     for (int i = 0; i < 2; ++i) if (inj[i] >= 0) taiInjectRelease(inj[i]);
     if (thread >= 0) { SceUInt timeout = 500 * 1000; sceKernelWaitThreadEnd(thread, NULL, &timeout); }

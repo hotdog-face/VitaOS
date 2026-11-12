@@ -411,6 +411,38 @@ Lesson, again: kernel code tried live costs a forced restart every time it
 is wrong. The next attempt needs a trace before each step and one piece
 tested at a time (see the README there).
 
+**Second attempt, one piece at a time (plugin 0.8a, 2026-11-13): the
+kernel module is not needed.**
+
+- Why the overlay showed LiveArea, tested on its own (a switch that opens
+  nothing on a short PS): with the kernel half hiding the press from every
+  controller read the shell makes, **the shell still went to LiveArea**. So
+  the shell learns of PS some other way, and the kernel half was never what
+  kept LiveArea away; in the menu flow the menu app's launch simply covered
+  it.
+- What does keep it away: the system's own PS lock
+  (`sceShellUtilLock(PS_BTN_2)`), taken by the plugin inside SceShell while
+  a game is in front. Same test with the lock on: the game stays in front
+  and nothing happens. This is what Codex's bridge did for its overlay.
+- With the lock on: PS opens the menu in about 0.75 s with no LiveArea in
+  between (frames captured), PS again resumes the same game, and holding PS
+  still opens Sony's quick menu.
+- **With no kernel module loaded at all** (`kernel.on` removed): the plugin
+  reads PS itself and all of that still works; Close game returned to
+  VitaOS in 4.6 s. So the experimental set-up is user-mode only from here:
+  Set up no longer copies or enables the kernel half, and Update switches an
+  old one off. `user/pslock.off` turns the lock off.
+- A mistake on the way: plugin 0.8 first linked the lock function as a
+  required import. The system then refused to load the plugin at start-up,
+  so red stopped at Sony's lock screen and slept until Mitchell woke it and
+  opened VitaOS. It is linked as optional now (as the bridge does), and the
+  call succeeded at 110 s on red. Lesson: a plugin that fails to load takes
+  the hands-free restart with it; a new import gets tried in a late-loaded
+  test first.
+- The overlay proper (a card drawn into the game's frames, no app switch)
+  is still not done. The lock was the missing piece for its PS handling;
+  the drawing half is the kernel display hook, the risky part.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -424,7 +456,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.6a (not 0.7), and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.8a, no kernel half). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

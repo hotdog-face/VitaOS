@@ -21,9 +21,9 @@ power-on, and for a few seconds between a game ending and VitaOS drawing.
   `tai/config.txt`. On any other firmware the lock-screen part switches
   itself off (it only patches a system file it recognises), so the system
   lock screen stays; the rest is untested there.
-- It loads a **kernel module**. Kernel modules can hang or crash a console.
-  This one is loaded about 30 seconds after power-on, not from
-  `config.txt`, and it leaves itself out after a load that did not finish.
+- It is **user-mode only**: one plugin inside the system's shell, and a
+  small menu app. No kernel module. (An earlier build loaded one; Set up
+  and Update switch it off.)
 - It **removes the system lock screen**. If you use a passcode, the passcode
   is skipped too. Do not install this if you rely on one.
 - Know how to hold **L** at power-on: that skips every plugin, this one
@@ -35,9 +35,8 @@ power-on, and for a few seconds between a game ending and VitaOS drawing.
    VitaOS's own updater will not offer it).
 2. Open VitaOS > Settings > VitaOS > **VitaOS as the system** > Set up.
    It adds one line under `*main` in your `tai/config.txt` (a copy of the
-   old file is kept as `config.txt.before-vitaos`), copies the kernel
-   module to `ux0:data/arcadehub/`, and installs the menu app ("VitaOS
-   Menu", title ID `VTOSPAUSE`).
+   old file is kept as `config.txt.before-vitaos`) and installs the menu
+   app ("VitaOS Menu", title ID `VTOSPAUSE`).
 3. Restart when it asks.
 
 ## Uninstall
@@ -53,15 +52,15 @@ power-on, and for a few seconds between a game ending and VitaOS drawing.
 | What you see | What to do |
 |---|---|
 | Black screen or no home screen at power-on | Hold Power 30 s to switch off. Power on holding **L** until the home screen shows. Open VitaShell and delete the `ur0:tai/vitaos_shell.suprx` line from `ur0:tai/config.txt` (or `ux0:tai/config.txt`), or copy `config.txt.before-vitaos` back over it. |
-| PS in a game shows LiveArea first | The kernel module was left out. Settings > VitaOS > VitaOS as the system > "Turn the PS part back on", then restart. |
+| PS in a game shows LiveArea | The plugin is not holding PS. Check `user/pslock.off` and `user/menu.off` are not there, and restart. |
 | PS in a game does nothing useful | Hold PS for the system's quick menu; close the game from LiveArea. Then Remove, and report it. |
 | VitaOS does not open at power-on | Check Settings > VitaOS > Start at power-on is on. |
 
 Switches, all files in `ux0:data/arcadehub/user/` (create an empty file to
 switch off): `shell.off` (everything), `menu.off` (the PS menu),
 `shell-idle.off` (coming back to VitaOS when nothing is running),
-`lockscreen.keep` (keep the system lock screen). Delete `kernel.on` to stop
-the kernel module loading.
+`lockscreen.keep` (keep the system lock screen), `pslock.off` (let the shell
+have PS in games again).
 
 ## What is known not to work yet
 
