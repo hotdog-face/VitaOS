@@ -18,6 +18,7 @@ print(r'''#include <stdio.h>
 #include <unistd.h>
 #define LINE "ur0:tai/vitaos_ps.suprx"
 /* the Vita's file calls, on this computer; fail_rename makes the Nth rename fail */
+static void fail(char *err, int max, const char *sentence, const char *path) { snprintf(err, max, "%s\n%s", sentence, path); }
 static int fail_rename;
 static int exists(const char *p) { return access(p, F_OK) == 0; }
 static int sceIoRemove(const char *p) { return remove(p) ? -1 : 0; }
@@ -81,7 +82,7 @@ int main(void) {
     ok("under *KERNEL: remove takes it out", !anywhere(edit_config(wrong, 0)));
     /* files VitaOS must refuse to edit */
     const char nul[] = "*KERNEL\nur0:tai/a.skprx\n\0*main\nur0:tai/henkaku.suprx\n";
-    ok("stray NUL refused", !config_ok(nul, sizeof(nul) - 1, "config.txt", err, sizeof(err)) && strstr(err, "zero byte"));
+    ok("stray NUL refused", !config_ok(nul, sizeof(nul) - 1, "config.txt", err, sizeof(err)) && strstr(err, "zero byte") && strstr(err, "\nconfig.txt"));
     ok("UTF-16 LE refused", !config_ok("\xFF\xFE*\0m\0", 6, "config.txt", err, sizeof(err)) && strstr(err, "UTF-16"));
     ok("UTF-16 BE refused", !config_ok("\xFE\xFF\0*\0m", 6, "config.txt", err, sizeof(err)));
     ok("UTF-8 BOM and plain accepted", config_ok("\xEF\xBB\xBF*main\n", 9, "c", err, sizeof(err)) && config_ok("*main\n", 6, "c", err, sizeof(err)));
