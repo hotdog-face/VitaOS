@@ -298,6 +298,24 @@ start as Home appearing "with things slowly loading in".
 - Not looked into: the first PS after a fresh install of the menu app was
   slow once (LiveArea for a few seconds).
 
+**Menu: "Playing for N min" (plugin 0.6, 2026-11-13).** The plugin passes
+how long the game has been open as a third field in `paused.txt`; the menu
+shows it under the title (`docs/screenshots-real-os/07-...png`). Seen on red.
+
+**Not built, and why (2026-11-13):**
+
+- **A cover over LiveArea at power-on.** The only places to do it are the
+  boot path inside SceShell (hooks on how the shell shows its picture) or a
+  kernel module at boot. Hooks in SceShell have already had one unexplained
+  bad effect on red (PS ended games), the display functions the shell uses
+  are not confirmed, and a mistake here is a black screen that needs a
+  restart with L held, by hand. Mitchell saw the power-on as it is and did
+  not object to it. Better done with a second console to try it on first.
+- **Notifications while a game runs.** VitaOS is not running while a game
+  is, and nothing in it produces events during play (its downloads and
+  updates stop when it closes). It needs a background helper that keeps
+  downloading first; the notification call itself is the small part.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -312,7 +330,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.5d, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.6, and the kernel half with `user/kernel.on`; delete that file to stop it loading). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

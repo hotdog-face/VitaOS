@@ -55,6 +55,7 @@ static int file_exists(const char *p) {
 /* ---------- return to VitaOS when a game ends ---------- */
 
 #define TICK_MS 250
+static SceUInt64 armed_since;
 static char armed[16];                /* title ID of the game whose end brings VitaOS back */
 static SceUID armed_pid;
 static int gone_ticks;
@@ -150,6 +151,7 @@ static void return_tick(void) {
     if (running_game(tid, &pid, &home)) {
         if (sceClibStrncmp(armed, tid, 16)) {
             sceClibMemcpy(armed, tid, sizeof(armed));
+            armed_since = sceKernelGetSystemTimeWide();        /* for the menu: how long this game has been open */
             armed_from_home = home_launch_at && sceKernelGetSystemTimeWide() - home_launch_at < 90ull * 1000 * 1000;
         }
         armed_pid = pid;
@@ -326,6 +328,14 @@ static void menu_open(void) {
         sceIoWrite(fd, menu_tid, sceClibStrnlen(menu_tid, 16));
         sceIoWrite(fd, "\t", 1);
         sceIoWrite(fd, title, sceClibStrnlen(title, sizeof(title)));
+        /* 0.6: and the minutes this game has been open (seconds >> 6 is near enough
+         * to minutes / 1.07; no 64-bit division here), when it is the game being followed. */
+        if (armed_since && !sceClibStrncmp(armed, menu_tid, 16)) {
+            char m[16];
+            unsigned int secs = (unsigned int)((sceKernelGetSystemTimeWide() - armed_since) >> 20);
+            int n = sceClibSnprintf(m, sizeof(m), "\t%u", secs / 57);   /* ">> 20" counts 1.048576 s as one */
+            sceIoWrite(fd, m, n);
+        }
         sceIoWrite(fd, "\n", 1);
         sceIoClose(fd);
     }
@@ -588,7 +598,7 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.5d loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.6 loaded", 0, 0, 1);
     lock_patch();
     ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and

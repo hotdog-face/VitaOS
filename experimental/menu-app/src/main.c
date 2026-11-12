@@ -20,6 +20,7 @@
 #include <psp2/registrymgr.h>
 #include <vita2d.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 
@@ -65,6 +66,7 @@ SceUID __wrap_sceKernelAllocMemBlock(const char *name, SceKernelMemBlockType typ
 static vita2d_font *font, *bold;
 static char tid[16], title[128];
 
+static int minutes = -1;
 static void read_paused(void) {
     char buf[256] = {0};
     SceUID fd = sceIoOpen(PAUSED, SCE_O_RDONLY, 0);
@@ -76,6 +78,8 @@ static void read_paused(void) {
         snprintf(title, sizeof(title), "%s", tab + 1);
         char *nl = strpbrk(title, "\r\n");
         if (nl) *nl = 0;
+        char *t2 = strchr(title, '\t');               /* a third field: minutes this game has been open */
+        if (t2) { *t2 = 0; minutes = atoi(t2 + 1); }
     }
     if (!title[0]) snprintf(title, sizeof(title), "Your game");
 }
@@ -232,6 +236,13 @@ int main(void) {
         if (icon) vita2d_draw_texture_scale(icon, 60, 200, 1.5f, 1.5f);
         vita2d_font_draw_text(bold, 60, 150, RGBA8(170, 180, 210, 255), 16, "PAUSED");
         vita2d_font_draw_text(bold, 60, 420, RGBA8(255, 255, 255, 255), 28, title);
+        if (minutes >= 0) {
+            char played[48];
+            if (minutes < 1) snprintf(played, sizeof(played), "Just started");
+            else if (minutes < 60) snprintf(played, sizeof(played), "Playing for %d min", minutes);
+            else snprintf(played, sizeof(played), "Playing for %d h %d min", minutes / 60, minutes % 60);
+            vita2d_font_draw_text(font, 60, 450, RGBA8(170, 180, 210, 255), 16, played);
+        }
 
         for (int i = 0; i < NB; ++i) {
             float y = BY0 + i * (BH + BGAP);
