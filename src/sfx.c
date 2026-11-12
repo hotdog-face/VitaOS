@@ -31,6 +31,16 @@ static float bed_gain;                     /* eases toward bed_want, so it fades
 static SceUID sema = -1, lock = -1;
 static int port = -1;
 
+/* For the sound line in home.log (main.c): is the port open, are buffers
+ * going out, do they hold anything but silence. "No sound" reports cannot be
+ * told apart otherwise (red, 2026-11-11). */
+static volatile unsigned int dbg_outs;
+static volatile int dbg_rc, dbg_peak;
+void sfx_debug(int *port_out, unsigned int *outs, int *rc, int *peak, int *state) {
+    *port_out = port; *outs = dbg_outs; *rc = dbg_rc; *peak = dbg_peak;
+    *state = (bed_ready ? 1 : 0) | (bed_want ? 2 : 0) | (level << 8) | (ambient_level << 16);
+}
+
 static float noise(void) { return (float)rand() / RAND_MAX * 2.0f - 1.0f; }
 
 /* A short voice: sum of partials (Hz, weight), attack then exponential decay,
@@ -174,7 +184,9 @@ static int mixer(SceSize args, void *argp) {
             else busy = 1;
         }
         sceKernelSignalSema(lock, 1);
-        sceAudioOutOutput(port, out);
+        dbg_rc = sceAudioOutOutput(port, out);
+        dbg_outs++;
+        if (busy) { int peak = 0; for (int i = 0; i < GRAIN; ++i) { int a = out[i] < 0 ? -out[i] : out[i]; if (a > peak) peak = a; } dbg_peak = peak; }
         if (!busy) sceKernelWaitSema(sema, 1, NULL);            /* sleep until the next sound */
     }
     return 0;

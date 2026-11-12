@@ -21,6 +21,8 @@
 #include <psp2/appmgr.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
+#include <psp2/audioout.h>
+#include <psp2/avconfig.h>
 #include <psp2/kernel/threadmgr.h>
 #include <taihen.h>
 
@@ -862,6 +864,17 @@ int main(void) {
                     }
                 }
             }
+        }
+        if (frame_no == 600 || frame_no == 2400) {    /* 10 s and 40 s in: one line on the sound path */
+            int sp, rc, peak, st, vol = -1, pv;
+            unsigned int outs;
+            sfx_debug(&sp, &outs, &rc, &peak, &st);
+            sceAVConfigGetSystemVol(&vol);
+            pv = sp >= 0 ? sceAudioOutGetConfig(sp, SCE_AUDIO_OUT_CONFIG_TYPE_LEN) : -1;
+            home_log("sound: port=%d buffers=%d", sp, (int)outs);
+            home_log(" last rc=0x%08X peak=%d", rc, peak);
+            home_log(" state=0x%06X system volume=%d", st, vol);
+            home_log(" port len=%d adopt main=%d\n", pv, sceAudioOutGetAdopt(SCE_AUDIO_OUT_PORT_TYPE_MAIN));
         }
         update_tick();                                /* a downloaded update hands over to VitaOS Updater */
         STAGE("tab body");

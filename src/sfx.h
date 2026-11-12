@@ -12,4 +12,6 @@ void sfx_ambient(int want);     /* Home's quiet chords: call every frame with wh
 int sfx_ambient_level(void);
 void sfx_set_ambient_level(int level);
 
+void sfx_debug(int *port_out, unsigned int *outs, int *rc, int *peak, int *state);   /* for home.log */
+
 #endif
