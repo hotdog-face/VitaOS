@@ -227,10 +227,25 @@ after 3 s. One had been left open that way and kept VitaOS from coming back.
   the "nothing running" return does not fire, so red stayed on LiveArea.
   That only concerns consoles with Codex's tools.
 
+**Hands-on check by Mitchell (2026-11-13), on red, real buttons.**
+
+- PS in Sound Shapes: short press opens the menu, PS again resumes, holding
+  PS opens Sony's quick menu, Close game returns to VitaOS. All as expected.
+- Sleep and wake in VitaOS: wakes straight into VitaOS's Home. No Sony lock
+  screen, so the second lock-screen patch covers wake as well. (VitaOS's own
+  lock screen was switched off at the time, so its wake path is still
+  unseen.)
+- Sleep and wake in a game: wakes in the game, at the same spot.
+- Power-on, in his words: boots normally, "updating database", the spinning
+  logo, a flash of VitaOS's LiveArea card, the PS Vita logo, then VitaOS's
+  Home with things loading in. He did not mention the bubbles.
+  - "Updating database" at every start is not expected. It may be a one-off
+    after the menu app was installed and removed several times that night;
+    to check at the next few starts.
+
 What the goal still lacks:
 
-1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
-   shows).
+1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
 2. LiveArea is still seen in two places: from about 8 s to 22 s after
    power-on, before VitaOS is up; and for a few seconds between a game
    ending and VitaOS drawing. (PS over a game now shows only the launch
