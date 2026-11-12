@@ -12,9 +12,27 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: vitasdk/vitasdk:latest
+    # Pinned, by tag and digest, to the image every release from 1.0.0 to 1.8.4
+    # was built with (and whose toolchain matches the one tested on hardware:
+    # gcc 15.2, curl 8.17.0 built against OpenSSL 1.0). ":latest" moved on
+    # 2026-10-15 to a curl built against a newer OpenSSL, and VitaOS stopped
+    # linking (EVP_MD_CTX_new and friends undefined). To move to a newer image,
+    # change this on purpose and retest HTTPS on a Vita: the OpenSSL locks and
+    # the hardware RNG in src/ssl_locks.c are written for 1.0.2.
+    container: vitasdk/vitasdk:2026.08-20260925@sha256:fd82d88ff456d118eef16533ebf9a3a6ae0e292684fb8a3a35f15f0707b4692d
     steps:
       - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          arm-vita-eabi-gcc --version | head -1
+          grep -h "define LIBCURL_VERSION " $VITASDK/arm-vita-eabi/include/curl/curlver.h
+          # The prebuilt curl must be one built against OpenSSL 1.0 (it then
+          # uses EVP_MD_CTX_create); one built for 1.1+ cannot link with the
+          # OpenSSL 1.0.2 installed below.
+          if arm-vita-eabi-nm $VITASDK/arm-vita-eabi/lib/libcurl.a 2>/dev/null | grep -q "U EVP_MD_CTX_new"; then
+            echo "::error::This image's curl is built against OpenSSL 1.1+; VitaOS needs the pinned image (see the container line)."
+            exit 1
+          fi
       # The image ships OpenSSL 1.1.1, but its prebuilt curl was compiled
       # against 1.0 headers: VitaOS would not link, and HTTPS failed when curl
       # was rebuilt for 1.1.1. Install vitasdk's own OpenSSL 1.0.2 recipe
@@ -57,6 +75,9 @@ jobs:
           cmake -E tar tf VitaOS.vpk | grep -q "modules/reAvPlayer.suprx"
           cmake -E tar tf VitaOS.vpk | grep -q "assets/plugin/vitaos_ps.suprx"
           cmake -E tar tf VitaOS.vpk | grep -q "assets/updater.vpk"
+          # What went into the eboot (for comparing with the build tested on hardware)
+          arm-vita-eabi-strings -a vitaos | grep -E "^OpenSSL 1\.[0-9.a-z-]+ |libcurl/[0-9]" | sort -u
+          arm-vita-eabi-strings -a vitaos | grep -q "^OpenSSL 1\.0\.2"
       - uses: actions/upload-artifact@v4
         with:
           name: vitaos
