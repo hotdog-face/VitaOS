@@ -451,6 +451,35 @@ in front, holding PS opens Sony's quick menu, and Close game is back in
 VitaOS in 6.4 s (it took 22 and 36 s there with the older build). Both
 consoles now run the same thing, with no kernel module.
 
+**Cleanup, a hang, and the guard for it (plugin 0.9a, 2026-11-13).**
+
+- The unused parts are out of the working code: the controller hooks and
+  the kernel-half loader are gone from the plugin (534 lines, was about
+  700), the kernel half is no longer built or packaged
+  (`experimental/overlay-wip/kernel-0.1`), and Settings no longer knows
+  about it beyond switching an old `kernel.on` off.
+  `tools/test_sysint.sh` has five new checks for one plugin's line
+  replacing the other's (27 in all, passing).
+- **Red hung once more**, on plugin 0.9 (the cleanup, no kernel code
+  loaded): hold PS (Sony's quick menu opened), close it, two seconds later a
+  short PS, and red stopped answering. The same steps had passed on red and
+  on blue with 0.8a, and the code on that path did not change, so it is
+  intermittent; 0.8a has the same exposure.
+- Likely cause, not proven: the menu launched straight over the game while
+  the quick menu was still closing, the same kind of collision as the first
+  night's freeze.
+- 0.9a: after a held PS the plugin stands aside (lock off, no direct
+  launch) until its menu has been up once more or the game has gone; the
+  next short PS goes to the shell and the menu opens the older way, after
+  LiveArea. It also logs "menu: opening straight over" before every direct
+  launch, so a hang there shows in the log.
+- On red with 0.9a: the quick-menu-then-PS sequence four times and the
+  plain PS cycle four times, no hang; same game in front each time; a game
+  ended from outside was back in VitaOS in 2.9 s.
+- Blue is still on 0.8a (an update from here was not permitted without
+  Mitchell's say-so), so the sequence to avoid there is: hold PS, then a
+  short PS within a few seconds.
+
 What the goal still lacks:
 
 1. VitaOS's own lock screen on wake, seen by eye (Sony's stays away: confirmed).
@@ -464,7 +493,7 @@ What the goal still lacks:
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this
-branch as `VITAOS001`, `vitaos_shell.suprx` 0.8a, no kernel half). Undo: restore `ur0:tai/config.txt` from
+branch as `VITAOS001`, `vitaos_shell.suprx` 0.9a, no kernel half). Undo: restore `ur0:tai/config.txt` from
 `config.txt.before-vitaos-shell` (Mac copy:
 `backups/red-tai-before-vitaos-shell-20261111-2125`), rename
 `user/kiosk.on.aside` and `user/pause.off.aside` back, delete

@@ -13,6 +13,10 @@
  *    get past them: see patch_guard). user/lockscreen.keep keeps the lock screen.
  *  - PS in a game opens the VitaOS menu (experimental/menu-app, VTOSPAUSE)
  *    over the suspended game. Holding PS still opens the system's quick menu.
+ *    The system's own PS lock, held here while a game is in front, keeps the
+ *    shell from going to LiveArea on the press. User-mode only: an earlier
+ *    kernel half and controller hooks are gone (experimental/overlay-wip
+ *    has them and why).
  *  - When a game ends, or the menu closes it, VitaOS comes back at once,
  *    wherever the game was started from.
  *
@@ -175,71 +179,6 @@ static void return_tick(void) {
     launch_home(h);
 }
 
-/* ---------- 0.3: PS in a game never shows LiveArea ----------
- * The shell reads the controller like any program. While a game is in front
- * (ps_armed), these hooks on the shell's own controller reads take the PS bit
- * out of a press for its first half second. A short press is then never seen
- * by the shell, so it does not switch to LiveArea, and the menu is opened
- * straight over the game. A press held longer is let through: that is the
- * system's quick menu. This plugin's own reads are not hooked.
- * If a hidden press does not get the menu up, ps_armed stays off until the
- * next start (ps_failed), so PS can never go dead.
- * NOT WORKING YET, and off by default: see ctrl_hooks. */
-#define CTRL_LIB 0xD197E3C7
-#define NCTRL 12
-static const unsigned int ctrl_nid[NCTRL] = {
-    0xA9C3CED6, 0x15F81E8C, 0xA59454D3, 0x860BF292,      /* PeekBufferPositive, 2, Ext, Ext2 */
-    0x67E7AB83, 0xC4226A3E, 0xE2D99296, 0xA7178860,      /* ReadBufferPositive, 2, Ext, Ext2 */
-    0x104ED1A7, 0x81A89660, 0x15F96FB0, 0x27A0C5FB,      /* Peek/ReadBufferNegative, 2 */
-};
-#define NHOOK (NCTRL * 2)                                /* SceShell's imports, then ScePaf's */
-static SceUID ctrl_uid[NHOOK];
-static tai_hook_ref_t ctrl_ref[NHOOK];
-static volatile int ps_armed, ps_failed;
-static volatile unsigned int ps_hidden;                  /* presses hidden so far (a counter the watcher follows) */
-static volatile SceUInt64 ps_since;
-static volatile unsigned int ctrl_seen;                  /* bit i: hook i saw PS at least once (for the log) */
-
-static void ctrl_filter(int i, int ret, SceCtrlData *d, int negative) {
-    if (ret <= 0 || !d) return;
-    for (int k = 0; k < ret && k < 64; ++k) {
-        int down = negative ? !(d[k].buttons & 0x10000) : (d[k].buttons & 0x10000) != 0;
-        if (!down) continue;
-        ctrl_seen |= 1u << i;
-        if (!ps_armed) continue;
-        SceUInt64 now = sceKernelGetSystemTimeWide();
-        if (!ps_since) { ps_since = now; ++ps_hidden; }
-        if (now - ps_since < 500 * 1000) { if (negative) d[k].buttons |= 0x10000; else d[k].buttons &= ~0x10000u; }
-    }
-}
-#define CTRL_HOOK(i) \
-    static int ctrl_hook_##i(int port, SceCtrlData *d, int count) { \
-        int ret = TAI_CONTINUE(int, ctrl_ref[i], port, d, count); \
-        ctrl_filter(i, ret, d, (i % NCTRL) >= 8); \
-        return ret; \
-    }
-CTRL_HOOK(0) CTRL_HOOK(1) CTRL_HOOK(2) CTRL_HOOK(3) CTRL_HOOK(4) CTRL_HOOK(5) CTRL_HOOK(6) CTRL_HOOK(7)
-CTRL_HOOK(8) CTRL_HOOK(9) CTRL_HOOK(10) CTRL_HOOK(11) CTRL_HOOK(12) CTRL_HOOK(13) CTRL_HOOK(14) CTRL_HOOK(15)
-CTRL_HOOK(16) CTRL_HOOK(17) CTRL_HOOK(18) CTRL_HOOK(19) CTRL_HOOK(20) CTRL_HOOK(21) CTRL_HOOK(22) CTRL_HOOK(23)
-static const void *const ctrl_fn[NHOOK] = {
-    ctrl_hook_0, ctrl_hook_1, ctrl_hook_2, ctrl_hook_3, ctrl_hook_4, ctrl_hook_5, ctrl_hook_6, ctrl_hook_7,
-    ctrl_hook_8, ctrl_hook_9, ctrl_hook_10, ctrl_hook_11, ctrl_hook_12, ctrl_hook_13, ctrl_hook_14, ctrl_hook_15,
-    ctrl_hook_16, ctrl_hook_17, ctrl_hook_18, ctrl_hook_19, ctrl_hook_20, ctrl_hook_21, ctrl_hook_22, ctrl_hook_23,
-};
-
-static void ctrl_hooks(void) {
-    unsigned int ok = 0;
-    /* OFF unless user/ps-hide.on exists. On red (2026-11-12) these hooks, even
-     * when they changed nothing, made a PS press end the game instead of
-     * suspending it; why is not known yet. Kept for the next attempt. */
-    if (!file_exists(USER "ps-hide.on")) { slog("controller hooks: off", 0, 0); return; }
-    for (int i = 0; i < NHOOK; ++i) {
-        ctrl_uid[i] = taiHookFunctionImport(&ctrl_ref[i], i < NCTRL ? "SceShell" : "ScePaf", CTRL_LIB, ctrl_nid[i % NCTRL], ctrl_fn[i]);
-        if (ctrl_uid[i] >= 0) ok |= 1u << i;
-    }
-    slog("controller hooks (bits: 0-11 SceShell, 12-23 ScePaf)", 0, (int)ok);
-}
-
 /* ---------- PS in a game: the VitaOS menu ----------
  * The shell still switches to LiveArea on the press. 0.4 s later, if PS is not
  * being held (that is the system's quick menu), the menu app is opened over
@@ -284,13 +223,25 @@ static void ps_lock_set(int on) {
  * is let go (the shell is not going anywhere, so there is nothing to wait
  * for); a longer one is the shell's quick menu. */
 static SceUInt64 ps_lock_press;
+static int qm_aside;                    /* the system's quick menu may be up: see below */
 static void menu_open(void);
 static void ps_lock_step(int ps_down) {
-    if (!ps_lock_press || ps_down) return;
+    if (!ps_lock_press) return;
     SceUInt64 held = sceKernelGetSystemTimeWide() - ps_lock_press;
+    /* 0.9a: a held PS is the system's quick menu, which opens lock or no lock.
+     * From then on this plugin stands aside (lock off, no menu of its own
+     * straight over the game) until its menu has been up once more: red hung
+     * when the menu was launched directly a few seconds after the quick menu
+     * (2026-11-13, once in three runs of the same steps). The next short PS
+     * goes to the shell, and the menu opens the older way, after LiveArea. */
+    if (ps_down) {
+        if (held >= 500 * 1000 && !qm_aside) { qm_aside = 1; slog("PS held: standing aside for the quick menu", 0, 0); }
+        return;
+    }
     ps_lock_press = 0;
     int h;
-    if (held >= 500 * 1000 || app_running(MENU_TID) || !running_game(menu_tid, &menu_pid, &h)) return;
+    if (qm_aside || held >= 500 * 1000 || app_running(MENU_TID) || !running_game(menu_tid, &menu_pid, &h)) return;
+    slog("menu: opening straight over", menu_tid, 0);        /* a line before the launch: a hang after it says where */
     menu_open();
 }
 
@@ -298,47 +249,9 @@ static void ps_lock_tick(void) {
     char t[16];
     SceUID p;
     int h;
-    ps_lock_set(!file_exists(USER "pslock.off") && !ps_failed && !shell_off() && !file_exists(USER "menu.off")
-                && !app_running(MENU_TID) && running_game(t, &p, &h) && !h);
-}
-
-/* Every 250 ms: is a game in front of a shell that should not see PS? */
-static void ps_arm_tick(void) {
-    char t[16];
-    SceUID p;
-    int h;
-    ps_armed = !ps_failed && !shell_off() && !file_exists(USER "menu.off") && file_exists(USER "ps-hide.on")
-               && file_exists("ux0:app/" MENU_TID "/eboot.bin") && !app_running(MENU_TID) && running_game(t, &p, &h) && !h;
-}
-
-/* Every 50 ms. A hidden short press opens the menu at once; a held one was
- * let through to the shell for its quick menu. */
-static void ps_hide_step(int ps_down) {
-    static unsigned int done;
-    static SceUInt64 opened_at;
-    static int saw_down;
-    if (ps_down) saw_down = 1;
-    else if (saw_down) {                                   /* a whole press has gone by: this thread saw it go down and up */
-        saw_down = 0;
-        SceUInt64 since = ps_since;
-        ps_since = 0;
-        if (ps_hidden != done) {
-            done = ps_hidden;
-            if (since && sceKernelGetSystemTimeWide() - since < 500 * 1000 && !app_running(MENU_TID)) {
-                int h;
-                menu_at = 0;                                   /* not the LiveArea way as well */
-                if (running_game(menu_tid, &menu_pid, &h)) { menu_open(); opened_at = sceKernelGetSystemTimeWide(); }
-            }
-        }
-    } else if (ps_since && sceKernelGetSystemTimeWide() - ps_since > 2000 * 1000) ps_since = 0;   /* a press this thread missed */
-    if (opened_at && sceKernelGetSystemTimeWide() - opened_at > 3000 * 1000) {
-        opened_at = 0;
-        if (!app_running(MENU_TID)) {                          /* it did not come up: never hide PS again this boot */
-            ps_failed = 1;
-            ps_armed = 0;
-            slog("hidden PS did not open the menu: PS is the shell's again", menu_tid, (int)ctrl_seen);
-        } else slog("menu over the game, no LiveArea", menu_tid, (int)ctrl_seen);
-    }
+    int menu = app_running(MENU_TID), game = running_game(t, &p, &h) && !h;
+    if (qm_aside && (menu || !game)) qm_aside = 0;       /* the menu came up, or the game has gone: back to normal */
+    ps_lock_set(!qm_aside && !file_exists(USER "pslock.off") && !shell_off() && !file_exists(USER "menu.off") && !menu && game);
 }
 
 static void menu_step(int ps_down) {
@@ -449,81 +362,6 @@ static void idle_tick(void) {
     else if (++idle_fails == 3) slog("VitaOS did not open after three tries: waiting for something to change", home, 0);
 }
 
-/* ---------- 0.4: the kernel half (experimental/kernel/vitaos_k.c) ----------
- * With vitaos_k loaded, a short PS press over a game never reaches the shell
- * (no LiveArea); it is counted there instead, and the menu is opened here as
- * soon as the count moves. Loaded at run time, 30 s after power-on, only with
- * user/kernel.on, and never again after a load that did not finish
- * (boot.kloading is still there at the next start): delete that file to try
- * again. The module is ux0:data/arcadehub/vitaos_k.skprx. */
-#define VK_PORT 0x564B
-#define VK_FILE "ux0:data/arcadehub/vitaos_k.skprx"
-#define VK_GUARD "ux0:data/arcadehub/boot.kloading"
-static int vk_state;                       /* 0 not tried, 1 loaded, -1 not available */
-static SceUInt64 vk_loaded_at, vk_opened_at;
-static unsigned int vk_seen;
-
-static void kernel_load(void) {
-    if (vk_state || sceKernelGetSystemTimeWide() < 30ull * 1000 * 1000) return;
-    vk_state = -1;
-    if (shell_off() || !file_exists(USER "kernel.on") || !file_exists(VK_FILE)) { slog("kernel half: off", 0, 0); return; }
-    if (file_exists(VK_GUARD)) { slog("kernel half: not loaded, the last load did not finish", 0, 0); return; }
-    SceUID fd = sceIoOpen(VK_GUARD, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
-    if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
-    int rc = taiLoadStartKernelModule(VK_FILE, 0, NULL, 0);
-    slog("kernel half: load", 0, rc);
-    if (rc < 0) { sceIoRemove(VK_GUARD); return; }
-    int c = sceCtrlPeekBufferPositive2(VK_PORT, NULL, 0);
-    if (c < 0) { slog("kernel half: loaded but not answering", 0, c); sceIoRemove(VK_GUARD); return; }
-    vk_seen = (unsigned int)c;
-    vk_loaded_at = sceKernelGetSystemTimeWide();
-    vk_state = 1;
-}
-
-/* Every 50 ms. */
-static void kernel_step(void) {
-    kernel_load();
-    if (vk_state != 1) return;
-    /* It has run for 10 s: the load is good. (30 s at first: a restart 12 s
-     * after the load then left the guard behind and the module was not
-     * loaded again, 2026-11-13.) */
-    if (vk_loaded_at && sceKernelGetSystemTimeWide() - vk_loaded_at > 10ull * 1000 * 1000) {
-        vk_loaded_at = 0;
-        sceIoRemove(VK_GUARD);
-    }
-    static char t[16];
-    static SceUID p;
-    static int arm, n;
-    int h;
-    if (n++ % 5 == 0)                                      /* every 250 ms: is a game in front? */
-        arm = !ps_failed && !shell_off() && !file_exists(USER "menu.off") && file_exists("ux0:app/" MENU_TID "/eboot.bin")
-              && !app_running(MENU_TID) && running_game(t, &p, &h) && !h;
-    int c = sceCtrlPeekBufferPositive2(VK_PORT, NULL, arm);
-    if (c < 0) return;
-    if ((unsigned int)c != vk_seen) {                      /* a short press was hidden from the shell */
-        vk_seen = (unsigned int)c;
-        if (file_exists(USER "ps-noopen")) { slog("test: a short PS was counted, nothing opened", t, 0); return; }
-        if (arm && !app_running(MENU_TID)) {
-            sceClibStrncpy(menu_tid, t, 15);
-            menu_tid[15] = 0;
-            menu_pid = p;
-            menu_at = 0;
-            arm = 0;
-            sceCtrlPeekBufferPositive2(VK_PORT, NULL, 0);  /* the menu holds PS from here */
-            menu_open();
-            vk_opened_at = sceKernelGetSystemTimeWide();
-        }
-    }
-    if (vk_opened_at && sceKernelGetSystemTimeWide() - vk_opened_at > 3000 * 1000) {
-        vk_opened_at = 0;
-        if (!app_running(MENU_TID)) {                      /* the menu did not come up: PS is the shell's again */
-            ps_failed = 1;
-            sceCtrlPeekBufferPositive2(VK_PORT, NULL, 0);
-            slog("hidden PS did not open the menu: PS is the shell's again", menu_tid, 0);
-        } else slog("menu over the game, no LiveArea", menu_tid, 0);
-    }
-}
-
 static int watch(SceSize args, void *argp) {
     (void)args; (void)argp;
     unsigned int was = 0, loops = 0;
@@ -531,7 +369,7 @@ static int watch(SceSize args, void *argp) {
     SceCtrlData pads[16];
     while (running) {
         sceKernelDelayThread(50 * 1000);
-        if (++loops % (TICK_MS / 50) == 0) { return_tick(); home_req_tick(); idle_tick(); ps_arm_tick(); ps_lock_tick(); }
+        if (++loops % (TICK_MS / 50) == 0) { return_tick(); home_req_tick(); idle_tick(); ps_lock_tick(); }
         int n = sceCtrlPeekBufferPositive2(0, pads, 16);
         if (n <= 0) continue;
         unsigned int down = 0;
@@ -555,19 +393,17 @@ static int watch(SceSize args, void *argp) {
             if (app_running(MENU_TID)) {                    /* PS in the menu: it resumes the game */
                 SceUID fd = sceIoOpen("ux0:data/arcadehub/menu.ps", SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
                 if (fd >= 0) { sceIoWrite(fd, "1", 1); sceIoClose(fd); }
-            } else if (ps_lock_on && vk_state != 1) ps_lock_press = sceKernelGetSystemTimeWide();   /* see ps_lock_step */
+            } else if (ps_lock_on) ps_lock_press = sceKernelGetSystemTimeWide();   /* see ps_lock_step */
             else menu_note_press();
         }
         if (down && !was && file_exists(USER "shell-debug")) {
             char t[16] = "-";
             SceUID p = 0;
             int h = 0, g = running_game(t, &p, &h);
-            slog("PS edge: game/home/vitaos/menu bits, tid", t, g | h << 1 | vitaos_running() << 2 | app_running(MENU_TID) << 3 | (menu_at ? 16 : 0) | ps_armed << 5);
+            slog("PS edge: game/home/vitaos/menu bits, tid", t, g | h << 1 | vitaos_running() << 2 | app_running(MENU_TID) << 3 | (menu_at ? 16 : 0) | ps_lock_on << 5);
         }
         was = pads[n - 1].buttons & 0x10000;
         ps_lock_step(was != 0);
-        kernel_step();
-        ps_hide_step(was != 0);
         menu_step(was != 0);
     }
     return sceKernelExitDeleteThread(0);
@@ -653,9 +489,8 @@ static void lock_patch(void) {
 
 static int boot_start(SceSize args, void *argp) {
     (void)args; (void)argp;
-    boot_log("vitaos_shell 0.8a loaded", 0, 0, 1);
+    boot_log("vitaos_shell 0.9a loaded", 0, 0, 1);
     lock_patch();
-    ctrl_hooks();
     /* Open VitaOS when the system's start-up app (NPXS10079) has come and
      * gone, as AutoBoot does; 15 s at most, 4 s at least. */
     /* Not earlier than that: a launch at second 8 left red on a black screen
@@ -704,9 +539,7 @@ int module_start(SceSize args, void *argp) {
 int module_stop(SceSize args, void *argp) {
     (void)args; (void)argp;
     running = 0;
-    ps_armed = 0;
     ps_lock_set(0);
-    for (int i = 0; i < NHOOK; ++i) if (ctrl_uid[i] > 0) taiHookRelease(ctrl_uid[i], ctrl_ref[i]);
     for (int i = 0; i < 2; ++i) if (inj[i] >= 0) taiInjectRelease(inj[i]);
     if (thread >= 0) { SceUInt timeout = 500 * 1000; sceKernelWaitThreadEnd(thread, NULL, &timeout); }
     if (boot_thread >= 0) { SceUInt timeout = 500 * 1000; sceKernelWaitThreadEnd(boot_thread, NULL, &timeout); }

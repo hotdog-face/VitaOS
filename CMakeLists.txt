@@ -51,11 +51,11 @@ foreach(f ${VITAOS_ASSETS})
 endforeach()
 # EXPERIMENTAL ("VitaOS as the system", docs/real-os-plan.md): never on for a
 # release. cmake -DVITAOS_EXPERIMENTAL=ON adds the Settings row and carries the
-# three parts, built beforehand into experimental/out/ (tools/build_experimental.sh).
-option(VITAOS_EXPERIMENTAL "VitaOS as the system: shell plugin, kernel half, in-game menu" OFF)
+# two parts, built beforehand into experimental/out/ (tools/build_experimental.sh).
+option(VITAOS_EXPERIMENTAL "VitaOS as the system: shell plugin and in-game menu" OFF)
 if(VITAOS_EXPERIMENTAL)
   target_compile_definitions(vitaos PRIVATE VITAOS_EXPERIMENTAL)
-  foreach(f vitaos_shell.suprx vitaos_k.skprx menu.vpk)
+  foreach(f vitaos_shell.suprx menu.vpk)
     if(NOT EXISTS ${CMAKE_SOURCE_DIR}/experimental/out/${f})
       message(FATAL_ERROR "experimental/out/${f} is missing: run tools/build_experimental.sh first")
     endif()

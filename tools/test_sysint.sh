@@ -90,6 +90,23 @@ int main(void) {
     ok("UTF-16 BE refused", !config_ok("\xFE\xFF\0*\0m", 6, "config.txt", err, sizeof(err)));
     ok("UTF-8 BOM and plain accepted", config_ok("\xEF\xBB\xBF*main\n", 9, "c", err, sizeof(err)) && config_ok("*main\n", 6, "c", err, sizeof(err)));
 
+    /* experimental: vitaos_shell in vitaos_ps's place (sysint_shell_install does these two edits in one write) */
+    {
+        const char *both = "*KERNEL\nur0:tai/a.skprx\n*main\nur0:tai/vitaos_ps.suprx\nur0:tai/b.suprx\n";
+        kind = 0;
+        char *t1 = edit_config(both, 0);
+        kind = 1;
+        char *t2 = edit_config(t1, 1);
+        ok("shell replaces ps", !strcmp(t2, "*KERNEL\nur0:tai/a.skprx\n*main\nur0:tai/vitaos_shell.suprx\nur0:tai/b.suprx\n"));
+        ok("shell: listed, ps is not", listed(t2) && (kind = 0, !anywhere(t2)));
+        kind = 1;
+        ok("shell: adding twice changes nothing", !strcmp(edit_config(t2, 1), t2));
+        char *t3 = edit_config(t2, 0);
+        ok("shell: remove leaves the rest", !strcmp(t3, "*KERNEL\nur0:tai/a.skprx\n*main\nur0:tai/b.suprx\n"));
+        kind = 0;
+        ok("ps does not see a shell line as its own", !listed(t2) && !anywhere(t2));
+    }
+
     /* the swap, on real files */
     const char *C = "ur0tai/config.txt", *OLD = "*KERNEL\na\n*main\nb\n", *NEW = "*KERNEL\na\n*main\nur0:tai/vitaos_ps.suprx\nb\n";
     system("rm -rf ur0tai ux0tai; mkdir ur0tai");
