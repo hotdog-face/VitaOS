@@ -127,6 +127,12 @@ static int make_bed(SceSize args, void *argp) {
     }
     bed = b;
     bed_ready = 1;
+    /* Wake the mixer: Home may have asked for the music while this was still
+     * being made (it takes a while at this priority). The mixer had nothing
+     * to play then and went to sleep, and nothing woke it again: the music
+     * stayed silent until the first UI sound (red, 2026-11-11: "i hear
+     * nothing" on Home with Home music at 6/10). */
+    if (sema >= 0) sceKernelSignalSema(sema, 1);
     return 0;
 }
 
@@ -216,8 +222,10 @@ void sfx_play(int id) {
 int sfx_level(void) { return level; }
 
 void sfx_ambient(int want) {
-    if (want && !bed_want && port >= 0) sceKernelSignalSema(sema, 1);   /* wake the mixer */
-    bed_want = want && ambient_level > 0;
+    int now = want && ambient_level > 0;
+    int was = bed_want;
+    bed_want = now;                                   /* before the wake-up, so the mixer sees it */
+    if (now && !was && port >= 0) sceKernelSignalSema(sema, 1);
 }
 
 int sfx_ambient_level(void) { return ambient_level; }
