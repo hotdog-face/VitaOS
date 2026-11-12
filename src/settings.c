@@ -27,6 +27,9 @@
 #include "weather.h"
 #include "sfx.h"
 #include "storage.h"
+#ifdef VITAOS_EXPERIMENTAL
+#include "store.h"
+#endif
 
 #define BRIGHT_MIN 21
 #define BRIGHT_MAX 65536
@@ -312,7 +315,7 @@ static void page_reset(void) { in_rows = 0; rsel = 0; pbtn = -1; scroll = scroll
 
 enum { R_INFO, R_SLIDER, R_ACTION, R_TOGGLE };
 enum { A_NONE, A_BRIGHT, A_VOLUME, A_SFX, A_AMBIENT, A_THEME, A_BATTERY, A_BUBBLES, A_SLEEP, A_RESTART, A_POWEROFF,
-       A_AUTOUPD, A_LANG, A_TEXTSIZE, A_WIFI, A_BLUETOOTH, A_WEATHER, A_STORAGE, A_UPDATE, A_BOOT, A_PLUGIN, A_MOVIES, A_MUSIC, A_KIOSK, A_RESCAN, A_ART, A_ABOUT };
+       A_AUTOUPD, A_LANG, A_TEXTSIZE, A_WIFI, A_BLUETOOTH, A_WEATHER, A_STORAGE, A_UPDATE, A_BOOT, A_PLUGIN, A_SHELL, A_LOCKSCREEN, A_MOVIES, A_MUSIC, A_KIOSK, A_RESCAN, A_ART, A_ABOUT };
 typedef struct { int kind, act; const char *label, *sub; char value[96]; float frac; int on; unsigned int color; } Row;
 #define MAXROWS 12
 static Row rows[MAXROWS];
@@ -347,6 +350,10 @@ static void flag_write(const char *path, int on) {
  * constants, so a plain struct copy is safe to read from the UI. */
 static SysintState plugin_state;
 static volatile int plugin_on, plugin_dirty = 1;
+#ifdef VITAOS_EXPERIMENTAL
+static SysintState shell_state;
+static volatile int shell_on;
+#endif
 static void plugin_poll(void) {                       /* refresher thread */
     if (!plugin_dirty) return;
     plugin_dirty = 0;
@@ -354,6 +361,11 @@ static void plugin_poll(void) {                       /* refresher thread */
     int on = sysint_state(&st);
     plugin_state = st;
     plugin_on = on;
+#ifdef VITAOS_EXPERIMENTAL
+    on = sysint_shell_state(&st);
+    shell_state = st;
+    shell_on = on;
+#endif
 }
 
 /* Settings > VitaOS > Start at power-on: set up, update or remove the plugin
@@ -398,6 +410,109 @@ static void plugin_action_do(void) {
         ui_message("VitaOS plugin", msg);
     }
 }
+
+#ifdef VITAOS_EXPERIMENTAL
+/* EXPERIMENTAL (docs/real-os-plan.md): Settings > VitaOS > VitaOS as the
+ * system. Sets up, updates or removes the three parts: the shell plugin
+ * (one line under *main, in vitaos_ps's place), the kernel half (a file in
+ * ux0:data/arcadehub that the plugin loads after start-up; no config line)
+ * and the in-game menu app. */
+#define SH_DIR "app0:assets/shell/"
+#define SH_K_SRC SH_DIR "vitaos_k.skprx"
+#define SH_K_DST "ux0:data/arcadehub/vitaos_k.skprx"
+#define SH_K_ON "ux0:data/arcadehub/user/kernel.on"
+#define SH_LOCK "ux0:data/arcadehub/user/lockscreen.on"
+#define SH_MENU_VPK SH_DIR "menu.vpk"
+#define SH_MENU_EBOOT "ux0:app/VTOSPAUSE/eboot.bin"
+
+static int sh_exists(const char *p) { SceIoStat st; return sceIoGetstat(p, &st) >= 0; }
+
+static int sh_copy(const char *from, const char *to) {
+    SceUID in = sceIoOpen(from, SCE_O_RDONLY, 0);
+    if (in < 0) return in;
+    char part[96];
+    snprintf(part, sizeof(part), "%s.part", to);
+    SceUID out = sceIoOpen(part, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666);
+    if (out < 0) { sceIoClose(in); return out; }
+    static char buf[16 * 1024];
+    int n, rc = 0;
+    while ((n = sceIoRead(in, buf, sizeof(buf))) > 0)
+        if (sceIoWrite(out, buf, n) != n) { rc = -1; break; }
+    if (n < 0) rc = n;
+    sceIoClose(in);
+    sceIoClose(out);
+    if (rc < 0) { sceIoRemove(part); return rc; }
+    sceIoRemove(to);
+    return sceIoRename(part, to);
+}
+
+static void shell_action_do(void) {
+    SysintState st;
+    int on = sysint_shell_state(&st);
+    char err[300] = "", msg[500];
+    const char *title = "VitaOS as the system";
+    if (!on) {
+        if (!st.config) { ui_message(title, "This Vita has no tai/config.txt, so plugins are not set up here."); return; }
+        if (!st.bundled) { ui_message(title, "This VitaOS package does not carry the experimental parts."); return; }
+        snprintf(msg, sizeof(msg), "Experimental. The Vita starts in VitaOS, PS in a game opens VitaOS's menu, "
+                                   "and games end in VitaOS. One line is added to the file below; a copy is kept. "
+                                   "If the Vita starts badly, hold L at power-on.\n%s", st.config);
+        if (!ui_confirm(title, msg)) return;
+        if (sysint_shell_install(err, sizeof(err)) < 0) { ui_message(title, err); return; }
+        int krc = sh_copy(SH_K_SRC, SH_K_DST);
+        if (krc >= 0) flag_write(SH_K_ON, 1);
+        int mrc = 0;
+        if (!sh_exists(SH_MENU_EBOOT)) {             /* the in-game menu: installed like any app, once */
+            char tid[10];
+            mrc = store_prepare_pkg(SH_MENU_VPK, "ux0:data/arcadehub/update/menu-pkg", tid);
+            if (mrc >= 0) mrc = store_install_dir("ux0:data/arcadehub/update/menu-pkg");
+        }
+        flag_write(BOOT_OFF, 0);
+        if (krc < 0 || mrc < 0) {
+            snprintf(msg, sizeof(msg), "The plugin is set up, but not everything went in:%s%s\nVitaOS still opens at power-on; "
+                                       "choose this row again to retry.",
+                     krc < 0 ? "\nthe kernel module could not be copied (PS shows LiveArea briefly)" : "",
+                     mrc < 0 ? "\nthe menu app could not be installed (PS in a game goes to LiveArea)" : "");
+            ui_message(title, msg);
+        }
+        if (ui_confirm(title, "Done. It starts working after a restart. Restart the Vita now?")) scePowerRequestColdReset();
+        else ui_toast("VitaOS is the system after the next restart", C_OK);
+        return;
+    }
+    const char *items[3];
+    int n = 0, act[3];
+    if (!st.current && st.bundled) { items[n] = "Update its files"; act[n++] = 1; }
+    items[n] = "Remove"; act[n++] = 2;
+    items[n] = "What it does"; act[n++] = 3;
+    int k = ui_menu(title, items, n);
+    if (k < 0) return;
+    if (act[k] == 1) {
+        int rc = sysint_shell_update_file(err, sizeof(err));
+        if (rc >= 0 && sh_exists(SH_K_SRC)) rc = sh_copy(SH_K_SRC, SH_K_DST);
+        if (rc < 0) ui_message(title, err[0] ? err : "Could not copy the kernel module.");
+        else ui_toast("Updated: restart the Vita to use it", C_OK);
+    } else if (act[k] == 2) {
+        if (!ui_confirm("Remove", "The Vita goes back to its own lock screen and LiveArea, and PS in a game goes to "
+                                  "LiveArea. The line is taken out of the config; a copy of the old file is kept. "
+                                  "The menu app stays installed and does nothing by itself.")) return;
+        if (sysint_shell_remove(err, sizeof(err)) < 0) { ui_message("Remove", err); return; }
+        flag_write(SH_K_ON, 0);
+        flag_write(SH_LOCK, 0);
+        if (ui_confirm("Remove", "Removed. The Vita starts as usual after a restart. Restart now?")) scePowerRequestColdReset();
+    } else {
+        snprintf(msg, sizeof(msg), "Experimental. VitaOS opens at power-on with no lock screen; PS in a game opens VitaOS's "
+                                   "menu (hold PS for the system's own); games end in VitaOS. Hold L at power-on to skip "
+                                   "plugins once. Your old config is kept next to:\n%s", st.config);
+        ui_message(title, msg);
+    }
+}
+
+static void shell_action(void) {
+    shell_action_do();
+    plugin_dirty = 1;
+    rsel = 0;
+}
+#endif
 
 static void plugin_action(void) {
     plugin_action_do();
@@ -511,6 +626,25 @@ static void build_rows(void) {
              * never read from the card here, on the UI thread. */
             SysintState ps = plugin_state;
             int ps_on = plugin_on;
+#ifdef VITAOS_EXPERIMENTAL
+            SysintState sh = shell_state;
+            int sh_on = shell_on;
+            r = add(R_ACTION, A_SHELL, "VitaOS as the system");
+            snprintf(r->value, sizeof(r->value), "%s", !sh.config ? "Needs taiHEN" : sh.odd ? "Set up by hand"
+                     : !sh_on ? "Set up" : sh.current || !sh.bundled ? "On" : "Update ready");
+            r->sub = "Experimental: starts in VitaOS, PS menu in games, no LiveArea";
+            if (!sh_on || (!sh.current && sh.bundled)) r->color = C_ACCENT;
+            if (sh_on) {
+                r = add(R_TOGGLE, A_LOCKSCREEN, "VitaOS lock screen");
+                r->on = flag_set(SH_LOCK);
+                r->sub = "A clock screen at power-on and wake. Not a passcode";
+            }
+            if (sh_on) {
+                r = add(R_TOGGLE, A_BOOT, "Start at power-on");
+                r->on = !flag_set(BOOT_OFF);
+                r->sub = "Open VitaOS when the Vita starts";
+            } else
+#endif
             if (!ps_on) {
                 r = add(R_ACTION, A_PLUGIN, "Start at power-on");
                 snprintf(r->value, sizeof(r->value), "%s", !ps.config ? "Needs taiHEN" : ps.odd ? "Set up by hand" : "Set up");
@@ -614,6 +748,14 @@ static void activate(Row *r) {
         break;
     case A_UPDATE: { const char *um; float uf; if (!update_stage(&um, &uf)) update_get(); break; }
     case A_PLUGIN: plugin_action(); break;
+#ifdef VITAOS_EXPERIMENTAL
+    case A_SHELL: shell_action(); break;
+#endif
+#ifdef VITAOS_EXPERIMENTAL
+    case A_LOCKSCREEN:
+        flag_write(SH_LOCK, !r->on);
+        break;
+#endif
     case A_BOOT:
         flag_write(BOOT_OFF, r->on);
         ui_toast(r->on ? "VitaOS will not open at power-on" : "VitaOS opens at power-on", r->on ? C_ACCENT : C_OK);

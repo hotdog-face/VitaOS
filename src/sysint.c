@@ -24,12 +24,25 @@
 #include <string.h>
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
+#include <psp2/kernel/threadmgr.h>
 #include "sysint.h"
 #include "shared/sha256.h"
 
-#define BUNDLED "app0:assets/plugin/vitaos_ps.suprx"
-#define INSTALLED "ur0:tai/vitaos_ps.suprx"
-#define LINE "ur0:tai/vitaos_ps.suprx"
+/* Two plugins, never both: vitaos_ps (the released one) and, in an
+ * experimental build only, vitaos_shell (experimental/shell, "VitaOS as the
+ * system"). `kind` picks which one the functions below work on; the exported
+ * functions set it and hold `busy` meanwhile, since Settings reads the state
+ * from its refresher thread while the UI thread may be installing. */
+static int kind;
+static volatile int busy;
+static const char *const K_NAME[2] = {"vitaos_ps.suprx", "vitaos_shell.suprx"};
+static const char *const K_BUNDLED[2] = {"app0:assets/plugin/vitaos_ps.suprx", "app0:assets/shell/vitaos_shell.suprx"};
+static const char *const K_INSTALLED[2] = {"ur0:tai/vitaos_ps.suprx", "ur0:tai/vitaos_shell.suprx"};
+#define BUNDLED K_BUNDLED[kind]
+#define INSTALLED K_INSTALLED[kind]
+#define LINE K_INSTALLED[kind]
+static void take(int k) { while (__sync_lock_test_and_set(&busy, 1)) sceKernelDelayThread(2000); kind = k; }
+static void give(void) { kind = 0; __sync_lock_release(&busy); }
 #define MAX_CFG (64 * 1024)
 
 /* An error for the player: a fixed sentence (so it can be translated), then
@@ -88,8 +101,9 @@ const char *sysint_config_path(void) {
 static int is_our_line(const char *s, int n) {
     while (n && (*s == ' ' || *s == '\t')) { ++s; --n; }
     if (!n || *s == '#') return 0;
-    for (int i = 0; i + 15 <= n; ++i)
-        if (!strncmp(s + i, "vitaos_ps.suprx", 15)) return 1;
+    int len = strlen(K_NAME[kind]);
+    for (int i = 0; i + len <= n; ++i)
+        if (!strncmp(s + i, K_NAME[kind], len)) return 1;
     return 0;
 }
 
@@ -250,7 +264,8 @@ static int copy_plugin(char *err, int max) {
     char want[65], got[65];
     hash_hex(bin, len, want);
     sceIoMkdir("ur0:tai", 0777);
-    const char *part = INSTALLED ".part";
+    char part[64];
+    snprintf(part, sizeof(part), "%s.part", INSTALLED);
     int rc = write_all(part, bin, len);
     int n = 0;
     char *back = rc == 0 ? slurp(part, &n) : NULL;
@@ -263,7 +278,7 @@ static int copy_plugin(char *err, int max) {
     return 0;
 }
 
-int sysint_state(SysintState *s) {
+static int state_do(SysintState *s) {
     memset(s, 0, sizeof(*s));
     s->config = sysint_config_path();
     s->bundled = exists(BUNDLED);
@@ -286,7 +301,7 @@ int sysint_state(SysintState *s) {
     return s->listed && s->file;
 }
 
-int sysint_install(char *err, int max) {
+static int install_do(char *err, int max) {
     const char *cfg_path = sysint_config_path();
     if (!cfg_path) {
         snprintf(err, max, "This Vita has no tai/config.txt, so plugins are not set up here. Install HENkaku/Enso with taiHEN (vita.hacks.guide), then try again.");
@@ -305,9 +320,9 @@ int sysint_install(char *err, int max) {
     return rc;
 }
 
-int sysint_update_file(char *err, int max) { return copy_plugin(err, max); }
 
-int sysint_remove(char *err, int max) {
+
+static int remove_do(char *err, int max) {
     const char *cfg_path = sysint_config_path();
     if (!cfg_path) return 0;
     int len = 0;
@@ -319,6 +334,40 @@ int sysint_remove(char *err, int max) {
     int rc = text ? swap_config(cfg_path, cfg, len, text, err, max) : -1;
     free(text);
     free(cfg);
+    return rc;
+}
+
+int sysint_state(SysintState *s) { take(0); int r = state_do(s); give(); return r; }
+int sysint_install(char *err, int max) { take(0); int r = install_do(err, max); give(); return r; }
+int sysint_update_file(char *err, int max) { take(0); int r = copy_plugin(err, max); give(); return r; }
+int sysint_remove(char *err, int max) { take(0); int r = remove_do(err, max); give(); return r; }
+
+/* ---------- experimental: vitaos_shell in vitaos_ps's place ---------- */
+int sysint_shell_state(SysintState *s) { take(1); int r = state_do(s); give(); return r; }
+int sysint_shell_update_file(char *err, int max) { take(1); int r = copy_plugin(err, max); give(); return r; }
+int sysint_shell_remove(char *err, int max) { take(1); int r = remove_do(err, max); give(); return r; }
+
+/* One swap of the config: vitaos_ps's line out (the two would both open
+ * VitaOS at power-on), vitaos_shell's line in under *main. */
+int sysint_shell_install(char *err, int max) {
+    take(1);
+    int rc = -1, len = 0;
+    char *cfg = NULL, *t1 = NULL, *t2 = NULL;
+    const char *cfg_path = sysint_config_path();
+    if (!cfg_path) { snprintf(err, max, "This Vita has no tai/config.txt, so plugins are not set up here."); goto out; }
+    if (copy_plugin(err, max) < 0) goto out;
+    cfg = slurp(cfg_path, &len);
+    if (!cfg || len > MAX_CFG) { fail(err, max, "Could not read the config file.", cfg_path); goto out; }
+    if (!config_ok(cfg, len, cfg_path, err, max)) goto out;
+    kind = 0;
+    t1 = edit_config(cfg, 0);                    /* every vitaos_ps line out */
+    kind = 1;
+    t2 = t1 ? edit_config(t1, 1) : NULL;
+    if (!t2) { snprintf(err, max, "Out of memory."); goto out; }
+    rc = strcmp(t2, cfg) ? swap_config(cfg_path, cfg, len, t2, err, max) : 0;
+out:
+    free(cfg); free(t1); free(t2);
+    give();
     return rc;
 }
 

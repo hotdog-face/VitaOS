@@ -197,6 +197,36 @@ Japanese one could load after the first frame), and about 2.4 s before
 Also (plugin 0.5b): a menu whose game ended while it was open is closed
 after 3 s. One had been left open that way and kept VitaOS from coming back.
 
+**Set up and removed from Settings (2026-11-13).**
+
+- Build: `tools/build_experimental.sh` builds the three parts into
+  `experimental/out/`; `cmake -DVITAOS_EXPERIMENTAL=ON` then compiles the
+  Settings row and carries them in the package (`app0:assets/shell/`).
+  **The option is off by default; a normal build has none of it** (checked:
+  no `assets/shell/` in the normal package, and CI does not set the option).
+- `src/sysint.c` knows both plugins now (`vitaos_ps`, `vitaos_shell`) and
+  swaps one for the other in a single config write, with the same backup,
+  atomic swap and read-back as before. `tools/test_sysint.sh` still passes.
+- Settings > VitaOS > **VitaOS as the system**: Set up (plugin and config
+  line, kernel half and its switch, the menu app through the system's
+  installer), Update its files, Remove. When on, a **VitaOS lock screen**
+  toggle sits under it and the old "Start at power-on" set-up row is hidden,
+  so the two plugins can't both be listed.
+- On red, from Settings only:
+  - Remove took exactly one line out of `config.txt` and cleared the kernel
+    and lock-screen switches.
+  - Set up (with the menu app uninstalled first, so that path ran too) added
+    the line under the first `*main`, copied the kernel half, and installed
+    the menu app. No error message.
+  - After a restart: plugin loaded at 3 s, VitaOS up at 21 s, kernel half
+    loaded at 28 s, PS in Sound Shapes opened the menu, Resume gave the same
+    game back.
+- Not tested: "Update its files", Set up on a Vita with no dev bridge, and
+  Set up on a config that still has `vitaos_ps` listed (red's has none).
+- Seen on the way: with a developer background app running (`MVZA00005`),
+  the "nothing running" return does not fire, so red stayed on LiveArea.
+  That only concerns consoles with Codex's tools.
+
 What the goal still lacks:
 
 1. Wake from sleep, checked by eye (system lock screen stays away; VitaOS's
@@ -207,8 +237,8 @@ What the goal still lacks:
    animation into the menu.) Its bubbles are also reachable from VitaOS's
    "system home", on purpose.
 3. Notifications from VitaOS while a game runs (needs the background helper).
-4. An install and uninstall row in Settings, so this is not a hand-made
-   set-up on one console. Until then it exists only on red.
+4. A second console: everything has only ever run on red. (The Settings row
+   exists now; see above.)
 5. The menu: Wi-Fi, screenshot.
 
 Red is left in this state (plus `user/lockscreen.on`, VitaOS built from this

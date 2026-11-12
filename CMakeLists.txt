@@ -49,4 +49,17 @@ foreach(f ${VITAOS_ASSETS})
   string(REGEX REPLACE "^assets/modules/" "modules/" dst ${f})   # app0:modules/reAvPlayer.suprx
   list(APPEND VITAOS_FILES FILE ${CMAKE_SOURCE_DIR}/${f} ${dst})
 endforeach()
+# EXPERIMENTAL ("VitaOS as the system", docs/real-os-plan.md): never on for a
+# release. cmake -DVITAOS_EXPERIMENTAL=ON adds the Settings row and carries the
+# three parts, built beforehand into experimental/out/ (tools/build_experimental.sh).
+option(VITAOS_EXPERIMENTAL "VitaOS as the system: shell plugin, kernel half, in-game menu" OFF)
+if(VITAOS_EXPERIMENTAL)
+  target_compile_definitions(vitaos PRIVATE VITAOS_EXPERIMENTAL)
+  foreach(f vitaos_shell.suprx vitaos_k.skprx menu.vpk)
+    if(NOT EXISTS ${CMAKE_SOURCE_DIR}/experimental/out/${f})
+      message(FATAL_ERROR "experimental/out/${f} is missing: run tools/build_experimental.sh first")
+    endif()
+    list(APPEND VITAOS_FILES FILE ${CMAKE_SOURCE_DIR}/experimental/out/${f} assets/shell/${f})
+  endforeach()
+endif()
 vita_create_vpk(VitaOS.vpk ${VITAOS_TITLEID} eboot.bin VERSION ${VITAOS_VERSION} NAME "VitaOS" ${VITAOS_FILES})

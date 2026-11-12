@@ -16,6 +16,13 @@ const char *sysint_config_path(void);
 int sysint_install(char *err, int max);      /* 0, or < 0 with err filled in; nothing half-done */
 int sysint_update_file(char *err, int max);  /* copy the bundled plugin over the installed one */
 int sysint_remove(char *err, int max);       /* takes our line out of the config */
-void sysint_recover(void);                   /* at start: finish or undo an interrupted config swap */
+void sysint_recover(void);
+
+/* Experimental builds only: vitaos_shell.suprx ("VitaOS as the system") in
+ * vitaos_ps's place. Same rules: backup, atomic swap, read back. */
+int sysint_shell_state(SysintState *s);
+int sysint_shell_install(char *err, int max);
+int sysint_shell_update_file(char *err, int max);
+int sysint_shell_remove(char *err, int max);                   /* at start: finish or undo an interrupted config swap */
 
 #endif

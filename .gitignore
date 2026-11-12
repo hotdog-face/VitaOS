@@ -9,3 +9,4 @@ plugin/build/
 !assets/modules/reAvPlayer.suprx
 # The PS plugin bundled into the package is a build product (CI copies it).
 assets/plugin/
+build-exp/

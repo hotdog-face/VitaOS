@@ -16,7 +16,10 @@ print(r'''#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#define LINE "ur0:tai/vitaos_ps.suprx"
+static int kind;   /* 0 vitaos_ps, 1 vitaos_shell (experimental) */
+static const char *const K_NAME[2] = {"vitaos_ps.suprx", "vitaos_shell.suprx"};
+static const char *const K_INSTALLED[2] = {"ur0:tai/vitaos_ps.suprx", "ur0:tai/vitaos_shell.suprx"};
+#define LINE K_INSTALLED[kind]
 /* the Vita's file calls, on this computer; fail_rename makes the Nth rename fail */
 static void fail(char *err, int max, const char *sentence, const char *path) { snprintf(err, max, "%s\n%s", sentence, path); }
 static int fail_rename;
