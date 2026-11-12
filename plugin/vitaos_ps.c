@@ -214,14 +214,15 @@ static int any_app_running(void) {
 }
 
 /* 1.5: what happened at power-on, in ux0:data/arcadehub/boot.log (the last
- * boot only, a few short lines with seconds since the system started). When
+ * boot only, a few short lines with roughly the seconds since the system started
+ * (microseconds >> 20: no 64-bit division without the C runtime)). When
  * "it did not open at power-on" is reported, this says why: switched off,
  * something else already running, or the launches not taking. */
 #define BOOT_LOG "ux0:data/arcadehub/boot.log"
 static void boot_log(const char *what, const char *tid, int v, int fresh) {
     char line[96];
     int n = sceClibSnprintf(line, sizeof(line), "%3u s  %s %s %08X\n",
-                            (unsigned int)(sceKernelGetSystemTimeWide() / 1000000ull), what, tid ? tid : "-", v);
+                            (unsigned int)(sceKernelGetSystemTimeWide() >> 20), what, tid ? tid : "-", v);
     SceUID fd = sceIoOpen(BOOT_LOG, SCE_O_WRONLY | SCE_O_CREAT | (fresh ? SCE_O_TRUNC : SCE_O_APPEND), 0666);
     if (fd >= 0) { sceIoWrite(fd, line, n); sceIoClose(fd); }
 }
