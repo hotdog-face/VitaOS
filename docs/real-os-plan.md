@@ -19,12 +19,41 @@ Working on red today, with Codex's dev bridge doing the shell-side part:
 - A system-mode app runs beside a retail game with no hang (see "First run
   on red" below for what the earlier hang really was).
 
-Built, not yet on red (needs the first `tai` change and a restart):
+**Phase 2 passed on red (2026-11-12, about 21:30 PST), with VitaOS's own
+plugin** `experimental/shell/vitaos_shell.suprx` 0.1 under `*main` in place
+of Codex's `agent_autostart.suprx`. Its log (`ux0:data/arcadehub/boot.log`):
 
-- `experimental/shell/vitaos_shell.suprx` 0.1: the same jobs in VitaOS's own
-  user plugin, with no dev bridge: VitaOS at power-on as soon as the
-  start-up app is done, no lock screen, PS opens the menu, every game ends
-  in VitaOS.
+```
+  4 s  vitaos_shell 0.1 loaded
+  4 s  lock screen patches            (both applied; NID and code check passed)
+ 18 s  start-up app done
+ 18 s  launching VITAOS001
+ 23 s  VitaOS is up: VITAOS001
+ 90 s  menu over PCSA00003            (PS in Sound Shapes)
+106 s  home.req, opening VITAOS001    (Close game in the menu)
+165 s  a game ended, opening VITAOS001
+```
+
+- Power-on to VitaOS in 23 s, with the launch waiting for the start-up app
+  (`NPXS10079`, done at 18 s) instead of a fixed delay.
+- PS in a game opens the menu; Close game lands in VitaOS about 15 s later
+  (VitaOS's own start-up, with its splash, is most of that); a game ended
+  from outside also lands in VitaOS.
+- Not checked by eye: that no lock screen showed at power-on (the patches
+  report applied, and nobody had to swipe for the bridge to come up), and
+  wake from sleep.
+
+Red is left in this state. Undo: restore `ur0:tai/config.txt` from
+`config.txt.before-vitaos-shell` (Mac copy:
+`backups/red-tai-before-vitaos-shell-20261111-2125`), rename
+`user/kiosk.on.aside` and `user/pause.off.aside` back, delete
+`ux0:data/arcadehub/return.off`, restart.
+
+Next, in value order: make VitaOS reopen fast after a game (skip the splash
+and boot video on a return, restore the tab and selection); more in the menu
+(Wi-Fi, screenshot, battery, clock, "Home" that keeps the game); VitaOS's
+own lock screen and notifications; then an installer and uninstaller in
+Settings for people who want to try it.
 
 What changed in the design because of what red showed:
 
