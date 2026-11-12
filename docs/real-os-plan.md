@@ -59,7 +59,8 @@ red, **[web]** from published plugins or docs and not yet checked on red,
 3. **With L held, red keeps its SD2Vita `ux0:`** (YAMT loads from
    `boot_config.txt`, which L does not skip), so the tools on it stay
    reachable. **[red, 2026-11-12]** Retail games won't start in that mode
-   (`nonpdrm` is skipped); homebrew such as VitaShell does.
+   (`nonpdrm` is skipped). Whether VitaShell opens in that mode was not
+   tried.
 4. **Bad module in `boot_config.txt`:** only Safe Mode helps (R + PS + Power).
    Safe Mode skips Ensō's patches. "Restart" is the only safe choice there;
    "Restore the PS Vita System" resets settings and leaves Ensō inactive
