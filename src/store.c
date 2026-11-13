@@ -35,7 +35,7 @@
 #define CATALOG_FALLBACK "https://drdecki.github.io/VitaHomebrewDB/apps.json"
 #define ICON_URL "https://drdecki.github.io/VitaHomebrewDB/icons/"
 #define BASE_URL "https://drdecki.github.io/VitaHomebrewDB/"
-#define MAX_APPS 1400
+#define MAX_APPS 2400
 
 typedef struct {
     char *name, *icon, *version, *author, *type, *description, *date, *titleid, *long_description,
