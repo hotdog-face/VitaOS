@@ -8,6 +8,26 @@ power-on, what PS returns to from any game, and what owns the in-game menu,
 notifications and the lock screen. LiveArea keeps running underneath (it is
 `SceShell`, which the Vita can't run without) but is never seen.
 
+## Shelved on 2026-11-12: where it was left
+
+Mitchell shelved this track until he has time to be near the consoles.
+Nothing is in progress.
+
+- Public release is **1.9.2** (`main`). None of the experimental work is in it.
+- This branch has 1.9.2 merged in. Red and blue both run its experimental
+  build (plugin 0.9a, menu app, VitaOS based on 1.9.2).
+- **Next, in order:** (1) test for an opt-in download: a console without the
+  developer tools, more games under the PS menu (FEZ, Rayman, Cuphead, a
+  RetroArch game, a PSP game; see "More games under the menu"), other
+  firmwares; (2) hide what is left of Sony's shell (LiveArea at power-on,
+  the app-switch animation, system dialogs, notifications), which needs
+  shell or kernel code and someone at red to recover it.
+- Unattended game runs are not safe: a game that crashes takes red off the
+  network and needs a person. Gravity Rush and Persona 4 crash on red, cause
+  unknown.
+- The row for VitaOS's test-launch hook counts visible games only; read
+  `test-launch.result` to know which game started.
+
 ## Where it stands (2026-11-12)
 
 Working on red today, with Codex's dev bridge doing the shell-side part:
