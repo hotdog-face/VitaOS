@@ -66,4 +66,7 @@ have PS in games again).
 
 - Notifications while a game runs.
 - Games that use "enlarged memory" may close the menu app; untested.
-- Only Sound Shapes has been used for the PS menu tests.
+- The PS menu has been used over four games only: Sound Shapes, Dustforce,
+  Cave Story and Bastion.
+- A game whose trophy data belongs to another account still shows the
+  system's "You cannot earn trophies" question before it starts.

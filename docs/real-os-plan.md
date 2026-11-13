@@ -1082,3 +1082,47 @@ Both went through `launch` in the dev bridge, which hid one thing for a
 while: a system question on screen ("cannot earn trophies", "the following
 application will close") makes the launch time out, as it did the first
 night.
+
+## More games under the menu, driven through VitaOS (Mac clock 2026-11-12, about 16:00 PST)
+
+Nobody at the console. Method, new and better than the bridge's `launch`
+(which collides with the plugin and Sony's "application will close" prompt):
+VitaOS's own test hook. Put `vita\t<row>` in
+`ux0:data/arcadehub/test-launch.txt`, close VitaOS (`close VITAOS001`), and
+the plugin's idle return reopens it about 10 s later; VitaOS then starts
+that game itself, exactly as a player's press would. The row is the line in
+`games/vita.tsv` (row 2 was Bastion, so hidden games did not shift it there).
+Before Close game, write the next request and the chain carries on.
+
+Two things about reading the result: the bridge's `running` lists only the
+app in front (the suspended game is not in it while the menu is up), so
+"menu up" is `VTOSPAUSE` in `running`, and "same game" is the pid in
+`status` after Resume.
+
+| Game | PS opens the menu | Resume, same process | PS again | Close game to VitaOS |
+|---|---|---|---|---|
+| Bastion (`PCSE00790`) | yes | yes (pid 0x00FE3057 before and after) | yes | yes, 4.8 s |
+| FEZ (`PCSE00404`) | not reached | | | |
+
+Screenshot: `docs/screenshots-real-os/09-menu-over-bastion.png`.
+
+**Sony's trophy prompt.** Both games stopped first at a system dialog: "You
+cannot earn trophies in this application. Do you still want to start this
+application?" (`10-trophy-prompt-before-fez.png`). These copies carry
+another account's trophy data. A tap on Yes starts the game. It is drawn by
+the shell, after VitaOS has already closed, so the player sees a Sony dialog
+between VitaOS and the game. It is the likely reason the earlier bridge
+tests of Bastion, FEZ and Rayman went nowhere. Not handled by VitaOS; one
+more piece of LiveArea showing through.
+
+**Red dropped off the network when FEZ was started.** After Yes on the
+prompt, the bridge timed out once (60 s) and then the console stopped
+answering altogether: no ping, no port 1348, for more than six minutes.
+Nothing was pressed after the tap; the PS lock and the menu were not in play
+(the plugin only takes the lock once a game is in front). What happened on
+the screen is not known: a hang, a crash that powered it down, or sleep. The
+bridge's keep-awake was last set before VitaOS was closed and reopened, so
+sleep is possible. The plugin's log on the card (`boot.log`, and a crash
+dump in `ux0:data` if there is one) will say more once red is back. Until
+that is read, FEZ counts as untested, and the run stopped there: Rayman,
+Cuphead, a RetroArch game and a PSP game are still to do.
