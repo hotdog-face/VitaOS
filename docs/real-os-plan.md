@@ -1102,27 +1102,40 @@ app in front (the suspended game is not in it while the menu is up), so
 | Game | PS opens the menu | Resume, same process | PS again | Close game to VitaOS |
 |---|---|---|---|---|
 | Bastion (`PCSE00790`) | yes | yes (pid 0x00FE3057 before and after) | yes | yes, 4.8 s |
-| FEZ (`PCSE00404`) | not reached | | | |
+| Gravity Rush (`PCSA00011`) | not reached: the game crashed at its start | | | |
 
 Screenshot: `docs/screenshots-real-os/09-menu-over-bastion.png`.
 
 **Sony's trophy prompt.** Both games stopped first at a system dialog: "You
 cannot earn trophies in this application. Do you still want to start this
-application?" (`10-trophy-prompt-before-fez.png`). These copies carry
+application?" (`10-trophy-prompt-before-gravity-rush.png`). These copies carry
 another account's trophy data. A tap on Yes starts the game. It is drawn by
 the shell, after VitaOS has already closed, so the player sees a Sony dialog
 between VitaOS and the game. It is the likely reason the earlier bridge
 tests of Bastion, FEZ and Rayman went nowhere. Not handled by VitaOS; one
 more piece of LiveArea showing through.
 
-**Red dropped off the network when FEZ was started.** After Yes on the
-prompt, the bridge timed out once (60 s) and then the console stopped
-answering altogether: no ping, no port 1348, for more than six minutes.
-Nothing was pressed after the tap; the PS lock and the menu were not in play
-(the plugin only takes the lock once a game is in front). What happened on
-the screen is not known: a hang, a crash that powered it down, or sleep. The
-bridge's keep-awake was last set before VitaOS was closed and reopened, so
-sleep is possible. The plugin's log on the card (`boot.log`, and a crash
-dump in `ux0:data` if there is one) will say more once red is back. Until
-that is read, FEZ counts as untested, and the run stopped there: Rayman,
-Cuphead, a RetroArch game and a PSP game are still to do.
+**The second game was Gravity Rush, not FEZ, and it crashed.** Row 25 was
+asked for, meaning FEZ by its line in `games/vita.tsv`, but the row counts
+only games that are not hidden, and by row 25 eight were: VitaOS started
+Gravity Rush (`test-launch.result`: "GRAVITY RUSH™ launch rc=0x00000000").
+Read the result file before believing which game is up; the row from the
+file is only right near the top of the list.
+
+After Yes on the trophy prompt the bridge timed out once and red then left
+the network altogether (no ping, no port 1348) for about nine minutes. On
+the screen, Mitchell found the system's "an error has occurred in the
+following application" for Gravity Rush. He pressed OK; the plugin logged
+"a game ended, opening VITAOS001" (3382 s) and VitaOS came back, and the
+network with it some minutes later.
+
+- The PS lock and the menu were not in play: nothing was pressed after the
+  tap, and the crash was at the game's own start.
+- No new crash dump was written to `ux0:data` (the newest is an older
+  Cuphead one), so the cause is not known. Same picture as Persona 4 on this
+  console: a retail copy that starts and then stops with that error. Bastion,
+  Sound Shapes, Dustforce and Cave Story run, so it is not every game.
+- Why the network went is not known either. It means a crash dialog cannot
+  be dismissed from the Mac: a game that crashes in an unattended run needs
+  a person. The run stopped here for that reason. FEZ, Rayman, Cuphead, a
+  RetroArch game and a PSP game are still to do, with someone near red.
