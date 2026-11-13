@@ -73,7 +73,7 @@ enum { V_RECENT, V_FAV, V_MULTI, V_SEARCH };
 #define USER ROOT "user/"
 #define MAX_RECENT 24
 #define MAX_FAV 512
-#define MAX_HIDDEN 1024
+#define MAX_HIDDEN 4096   /* a big ROM set with its duplicates hidden passes 1024: red had 1804 */
 
 /* ---------- small helpers ---------- */
 
