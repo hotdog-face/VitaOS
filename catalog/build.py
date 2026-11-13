@@ -386,10 +386,18 @@ def main():
     extra = cbps_rows(ids, names)
     apps = base + extra
     bumped, repos = bump_to_latest(apps, token)
-    fresh, found, looked = discover(apps, ids, names, token, previous_catalog())
+    previous = previous_catalog()
+    fresh, found, looked = discover(apps, ids, names, token, previous)
     # The Store reads a fixed number of rows (MAX_APPS in src/store.c): keep
     # what cannot be downloaded at the end, so those are what an old build drops.
     apps = [a for a in base + fresh + extra if not a.get("blocked")] + [a for a in apps if a.get("blocked")]
+    # A source that answers with half its list must not empty everyone's Store:
+    # yesterday's catalogue stays up instead, and the job fails where it is seen.
+    if previous and len(apps) < 0.9 * len(previous):
+        sys.exit("refusing to publish: %d apps, yesterday had %d (VitaHomebrewDB %d, CBPS-DB %d, GitHub %d)"
+                 % (len(apps), len(previous), len(base), len(extra), len(fresh)))
+    if len(apps) > 2400:
+        print("warning: %d apps, and the Store reads 2400 (MAX_APPS in src/store.c)" % len(apps))
     with open(out, "w", encoding="utf-8") as f:
         json.dump(apps, f, ensure_ascii=False, indent=1)
     print("VitaHomebrewDB %d + CBPS-DB %d (%d listed but blocked) = %d apps; %d moved to a newer GitHub release (%d repos checked)"
