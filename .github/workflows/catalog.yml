@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write       # for the keep-alive step
 
 jobs:
   catalog:
@@ -27,3 +28,11 @@ jobs:
           gh release view catalog >/dev/null 2>&1 || gh release create catalog --title "Store catalogue" \
             --notes "The VitaOS Store's app list, rebuilt daily from VitaHomebrewDB and CBPS-DB. Not a VitaOS release." --latest=false
           gh release upload catalog catalog.json --clobber
+      # GitHub switches a scheduled workflow off after 60 days without a commit
+      # to the repository. Publishing a release file does not count, so the
+      # catalogue would quietly stop. Enabling the workflow again resets that.
+      - name: Keep this schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/catalog.yml/enable"

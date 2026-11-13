@@ -693,9 +693,9 @@ static int boot_video(void) {
     return 1;
 }
 
-/* Where the start-up time goes: start_mark("step") after each step, and one line per
- * start in ux0:data/arcadehub/start.log (the last start only) once the first
- * frame is out. Milliseconds since the process began. */
+/* Where the start-up time goes: start_mark("step") after each step, and one
+ * line per step in ux0:data/arcadehub/start.log (the last start only) once
+ * the first screen's pictures are in. Milliseconds since the process began. */
 static struct { const char *what; unsigned int ms; } t_marks[32];
 static int t_n;
 void start_mark(const char *what) {
