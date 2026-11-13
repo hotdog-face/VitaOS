@@ -711,9 +711,10 @@ static void activate(Row *r) {
     case A_THEME: theme_pick(); break;
     case A_TEXTSIZE: text_set_large(!r->on); break;
     case A_LANG: {
-        const char *items[8];
+        const char *items[16];              /* 9 since Russian: the list held 8 and the menu read one past it (#27) */
         int n = lang_count();
-        for (int i = 0; i < n && i < 8; ++i) items[i] = lang_name(i);
+        if (n > 16) n = 16;
+        for (int i = 0; i < n; ++i) items[i] = lang_name(i);
         int k = ui_menu("Language", items, n);
         if (k >= 0) lang_set(k);
         break;
